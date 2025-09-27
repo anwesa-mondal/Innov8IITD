@@ -68,7 +68,7 @@ export default function TechnicalInterview() {
   const [hintsUsed, setHintsUsed] = useState(0);
   const [approachDiscussed, setApproachDiscussed] = useState(false);
   const [hintTimer, setHintTimer] = useState<NodeJS.Timeout | null>(null);
-  const [autoHintEnabled, setAutoHintEnabled] = useState(true);
+  const [autoHintEnabled, setAutoHintEnabled] = useState(false);
   const [isRecordingApproach, setIsRecordingApproach] = useState(false);
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('python');
@@ -301,6 +301,11 @@ export default function TechnicalInterview() {
         // Save interview start time for duration calculations
         localStorage.setItem('interviewStartTime', Date.now().toString());
         
+        // Send greeting message from AI interviewer
+        const greetingMessage = `Hello! I'm your AI Technical Interviewer. We'll have 4 questions in total, focusing on the topics you selected: ${selectedTopics.join(', ')}. Each question will be of increasing difficulty: Easy, Medium, Medium, Hard. Let's begin!`;
+        addChatMessage('ai', greetingMessage);
+        speakText(greetingMessage);
+        
         // Initialize technical interview
         ws.send(JSON.stringify({
           type: 'init_technical',
@@ -348,12 +353,11 @@ export default function TechnicalInterview() {
         setApproachDiscussed(false);
         setCode(getLanguageTemplate(language));
         addChatMessage('ai', data.next_question || '');
-        speakText(data.next_question || '');
+        speakText(`Question 1: ${data.next_question || ''}`);
         break;
         
       case 'hint':
         addChatMessage('ai', `💡 ${data.hint}`);
-        speakText(data.hint || '');
         break;
         
       case 'code_feedback':
@@ -388,8 +392,9 @@ export default function TechnicalInterview() {
         
       case 'question_complete':
         const timeSpent = Date.now() - questionStartTime;
+        const completedQuestionNumber = currentQuestionIndex + 1;
         const newQuestion: Question = {
-          id: currentQuestionIndex + 1,
+          id: completedQuestionNumber,
           question: currentQuestion,
           code: code,
           score: data.score || 0,
@@ -400,21 +405,22 @@ export default function TechnicalInterview() {
         
         setQuestions(prev => [...prev, newQuestion]);
         setCurrentQuestionIndex(prev => prev + 1);
-        addChatMessage('ai', `✅ Question ${currentQuestionIndex + 1} completed! Score: ${data.score}/100`);
+        addChatMessage('ai', `✅ Question ${completedQuestionNumber} completed! Score: ${data.score}/100`);
         
         if (data.next_question) {
           console.log('Moving to next question:', data.next_question);
           console.log('Question number:', data.question_number || 'unknown');
           console.log('Remaining questions:', data.remaining_questions || 'unknown');
           
+          const nextQuestionNumber = completedQuestionNumber + 1;
           setTimeout(() => {
             setCurrentQuestion(data.next_question || '');
             setQuestionStartTime(Date.now());
             setHintsUsed(0);
             setApproachDiscussed(false);
             setCode(getLanguageTemplate(language));
-            addChatMessage('ai', `📋 Question ${data.question_number || (currentQuestionIndex + 2)}: ${data.next_question || ''}`);
-            speakText(`Question ${data.question_number || (currentQuestionIndex + 2)}: ${data.next_question || ''}`);
+            addChatMessage('ai', `📋 Question ${nextQuestionNumber}: ${data.next_question || ''}`);
+            speakText(`Question ${nextQuestionNumber}: ${data.next_question || ''}`);
           }, 2000);
         } else {
           console.warn('No next question provided in question_complete message');

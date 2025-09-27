@@ -1,0 +1,178 @@
+{
+  "session_id": "4e174326-e5cd-41ad-89ed-61684faf0609",
+  "topics": [
+    "Arrays"
+  ],
+  "total_questions": 4,
+  "completed_questions": 1,
+  "average_score": 90.0,
+  "individual_scores": [
+    90
+  ],
+  "total_time": 33.543729305267334,
+  "voice_responses": [],
+  "code_submissions": [
+    {
+      "code": "def first_duplicate(arr):\n    seen = set()\n    for num in arr:\n        if num in seen:\n            return num   # Found the first duplicate\n        seen.add(num)\n    return None   # No duplicates found\n\n# Example usage\nprint(first_duplicate([2, 1, 3, 5, 3, 2]))  # Output: 3\nprint(first_duplicate([1, 2, 3, 4]))        # Output: None\n",
+      "language": "python",
+      "timestamp": 1759016242.728638,
+      "question_id": 1,
+      "hints_used_so_far": 0
+    }
+  ],
+  "questions_data": [
+    {
+      "question": "Given an array of integers, write a function to find the first duplicate in the array. A duplicate is an element that appears more than once in the array. If no duplicates are found, return null.",
+      "difficulty": "easy",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a hash set to keep track of elements you have seen so far",
+        "Iterate through the array and check if each element is in the hash set",
+        "If an element is found in the hash set, it is a duplicate and you can return it immediately"
+      ],
+      "test_cases": [
+        {
+          "input": "[2, 1, 3, 4, 2]",
+          "output": "2",
+          "explanation": "2 is the first duplicate in the array"
+        },
+        {
+          "input": "[1, 2, 3, 4, 5]",
+          "output": "null",
+          "explanation": "No duplicates are found in the array"
+        },
+        {
+          "input": "[1, 1, 2, 3, 4]",
+          "output": "1",
+          "explanation": "1 is the first duplicate in the array"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Time complexity and efficiency of the solution"
+      ],
+      "id": 1
+    },
+    {
+      "question": "Given an array of integers, write a function to find the first duplicate in the array, i.e., the first element that appears more than once in the array. The function should return the duplicate element if found, otherwise return null. For example, if the input array is [2, 1, 3, 2, 4], the function should return 2 because it is the first duplicate in the array.",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a hash table to keep track of the elements you have seen so far",
+        "Iterate over the array and check if each element is already in the hash table",
+        "If an element is already in the hash table, it is a duplicate, so return it immediately"
+      ],
+      "test_cases": [
+        {
+          "input": "[2, 1, 3, 2, 4]",
+          "output": "2",
+          "explanation": "2 is the first duplicate in the array"
+        },
+        {
+          "input": "[1, 2, 3, 4, 5]",
+          "output": "null",
+          "explanation": "There are no duplicates in the array"
+        },
+        {
+          "input": "[1, 1, 2, 2, 3, 3]",
+          "output": "1",
+          "explanation": "1 is the first duplicate in the array"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Time complexity and space complexity analysis"
+      ],
+      "id": 2
+    },
+    {
+      "question": "Given an array of integers, find the first duplicate in the array, i.e., the first element that appears more than once in the array. If no duplicate exists, return -1. For example, given the array [2, 1, 3, 5, 3, 2], the first duplicate is 3, and given the array [1, 2, 3, 4, 5], the output should be -1.",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a hash set to keep track of the elements you have seen so far",
+        "Iterate over the array and check if each element is already in the hash set",
+        "If an element is already in the hash set, it is the first duplicate, so return it"
+      ],
+      "test_cases": [
+        {
+          "input": "[2, 1, 3, 5, 3, 2]",
+          "output": "3",
+          "explanation": "3 is the first duplicate in the array"
+        },
+        {
+          "input": "[1, 2, 3, 4, 5]",
+          "output": "-1",
+          "explanation": "No duplicates exist in the array"
+        },
+        {
+          "input": "[1, 1, 2, 3, 4, 5]",
+          "output": "1",
+          "explanation": "1 is the first duplicate in the array"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality"
+      ],
+      "id": 3
+    },
+    {
+      "question": "Given an array of integers, find the maximum sum of a subarray of size k, where k is also given as input. The subarray can be formed by selecting any k consecutive elements from the given array. For example, if the array is [1, 2, 3, 4, 5] and k is 3, the maximum sum of a subarray of size 3 is 12, which is the sum of the subarray [3, 4, 5].",
+      "difficulty": "hard",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a sliding window approach to efficiently calculate the sum of subarrays",
+        "Keep track of the maximum sum seen so far as you iterate through the array",
+        "Consider edge cases, such as when k is larger than the array length"
+      ],
+      "test_cases": [
+        {
+          "input": "[1, 2, 3, 4, 5], k = 3",
+          "output": "12",
+          "explanation": "The subarray [3, 4, 5] has the maximum sum of 12"
+        },
+        {
+          "input": "[5, 4, 3, 2, 1], k = 2",
+          "output": "9",
+          "explanation": "The subarray [5, 4] has the maximum sum of 9"
+        },
+        {
+          "input": "[1, 1, 1, 1, 1], k = 5",
+          "output": "5",
+          "explanation": "The entire array has the maximum sum of 5"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Efficiency and scalability of the solution"
+      ],
+      "id": 4
+    }
+  ],
+  "final_evaluation": {
+    "score": 90,
+    "feedback": "Excellent solution with optimal time complexity",
+    "correctness": "The function correctly identifies the first duplicate in the array",
+    "approach_quality": "The approach is efficient and well-discussed, utilizing a set for constant time lookups",
+    "code_quality": "The code is clean, readable, and well-structured with proper variable naming",
+    "areas_for_improvement": [
+      "Consider adding input validation for edge cases",
+      "No discussion of approach was provided during the interview"
+    ]
+  },
+  "interview_ended_manually": true,
+  "completion_status": "manually_ended",
+  "end_time": 1759016248.1751392
+}
