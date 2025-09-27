@@ -1,0 +1,222 @@
+{
+  "session_id": "f93616d6-e2c3-41cd-a811-8a2c42d5fc28",
+  "topics": [
+    "Arrays"
+  ],
+  "total_questions": 4,
+  "completed_questions": 2,
+  "average_score": 85.0,
+  "individual_scores": [
+    85
+  ],
+  "total_time": 40.15187168121338,
+  "voice_responses": [],
+  "code_submissions": [
+    {
+      "code": "import java.util.HashSet;\n\npublic class FirstDuplicateFinder {\n    public static Integer findFirstDuplicate(int[] arr) {\n        HashSet<Integer> seen = new HashSet<>();\n        for (int num : arr) {\n            if (seen.contains(num)) {\n                return num; // first duplicate found\n            }\n            seen.add(num);\n        }\n        return null; // no duplicates\n    }\n\n    public static void main(String[] args) {\n        int[] arr = {2, 5, 1, 2, 3, 5};\n        System.out.println(findFirstDuplicate(arr)); // Output: 2\n    }\n}\n",
+      "language": "java",
+      "timestamp": 1758991493.56271,
+      "question_id": 1,
+      "hints_used_so_far": 1
+    }
+  ],
+  "questions_data": [
+    {
+      "question": "Given an array of integers, write a function to find the first duplicate in the array. A duplicate is an element that appears more than once in the array. If no duplicates are found, return null.",
+      "difficulty": "easy",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a hash table to keep track of elements you have seen so far",
+        "Iterate through the array and check if each element is in the hash table",
+        "Return the first element that is found in the hash table"
+      ],
+      "test_cases": [
+        {
+          "input": "[2, 1, 3, 4, 2]",
+          "output": "2",
+          "explanation": "2 is the first duplicate in the array"
+        },
+        {
+          "input": "[1, 2, 3, 4, 5]",
+          "output": "null",
+          "explanation": "No duplicates are found in the array"
+        },
+        {
+          "input": "[1, 1, 2, 3, 4]",
+          "output": "1",
+          "explanation": "1 is the first duplicate in the array"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality"
+      ],
+      "id": 1
+    },
+    {
+      "question": "Given an array of integers, write a function to find the first duplicate in the array. A duplicate is an element that appears more than once in the array. If no duplicates are found, return -1. For example, given the array [2, 1, 3, 5, 3, 2], the function should return 3 because it is the first duplicate in the array.",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a hash table to keep track of the elements you have seen so far",
+        "Iterate through the array and check if each element is already in the hash table",
+        "If an element is already in the hash table, it is a duplicate and you should return it"
+      ],
+      "test_cases": [
+        {
+          "input": "[2, 1, 3, 5, 3, 2]",
+          "output": "3",
+          "explanation": "3 is the first duplicate in the array"
+        },
+        {
+          "input": "[1, 2, 3, 4, 5]",
+          "output": "-1",
+          "explanation": "No duplicates are found in the array"
+        },
+        {
+          "input": "[1, 1, 2, 2, 3, 3]",
+          "output": "1",
+          "explanation": "1 is the first duplicate in the array"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality"
+      ],
+      "id": 2
+    },
+    {
+      "question": "Given an array of integers, write a function to find the first duplicate in the array. A duplicate is an element that appears more than once in the array. If no duplicates are found, return -1. For example, given the array [2, 1, 3, 5, 3, 2], the function should return 3 because it is the first duplicate. Given the array [1, 2, 3, 4, 5], the function should return -1 because there are no duplicates.",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a hash table to keep track of the elements you have seen so far",
+        "Iterate over the array and check if each element is already in the hash table",
+        "If an element is already in the hash table, it is a duplicate and you should return it"
+      ],
+      "test_cases": [
+        {
+          "input": "[2, 1, 3, 5, 3, 2]",
+          "output": "3",
+          "explanation": "3 is the first duplicate in the array"
+        },
+        {
+          "input": "[1, 2, 3, 4, 5]",
+          "output": "-1",
+          "explanation": "there are no duplicates in the array"
+        },
+        {
+          "input": "[1, 1, 2, 2, 3, 3]",
+          "output": "1",
+          "explanation": "1 is the first duplicate in the array"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Time and space complexity analysis"
+      ],
+      "id": 3
+    },
+    {
+      "question": "Given an array of integers, write a function to find the longest subarray with a given sum, return the subarray and its length. For example, given the array [1, 4, 20, 3, 10, 5] and the sum 33, the longest subarray with the given sum is [20, 3, 10].",
+      "difficulty": "hard",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a hashmap to store the prefix sum and its index",
+        "Iterate over the array and for each element, calculate the prefix sum",
+        "Check if the difference between the current prefix sum and the given sum exists in the hashmap"
+      ],
+      "test_cases": [
+        {
+          "input": {
+            "array": [
+              1,
+              4,
+              20,
+              3,
+              10,
+              5
+            ],
+            "sum": 33
+          },
+          "output": {
+            "subarray": [
+              20,
+              3,
+              10
+            ],
+            "length": 3
+          },
+          "explanation": "The longest subarray with sum 33 is [20, 3, 10]"
+        },
+        {
+          "input": {
+            "array": [
+              1,
+              2,
+              3,
+              4,
+              5
+            ],
+            "sum": 5
+          },
+          "output": {
+            "subarray": [
+              2,
+              3
+            ],
+            "length": 2
+          },
+          "explanation": "The longest subarray with sum 5 is [2, 3]"
+        },
+        {
+          "input": {
+            "array": [
+              10,
+              15,
+              20,
+              25
+            ],
+            "sum": 45
+          },
+          "output": {
+            "subarray": [
+              10,
+              15,
+              20
+            ],
+            "length": 3
+          },
+          "explanation": "The longest subarray with sum 45 is [10, 15, 20]"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Time complexity and space complexity analysis"
+      ],
+      "id": 4
+    }
+  ],
+  "final_evaluation": {
+    "score": 85,
+    "feedback": "The candidate provided a correct and efficient solution to the problem",
+    "correctness": "The solution correctly identifies the first duplicate in the array",
+    "approach_quality": "The approach is good, using a HashSet to keep track of seen elements",
+    "code_quality": "The code is well-structured and readable, with proper use of Java collections",
+    "areas_for_improvement": [
+      "No approach discussion during the interview",
+      "Time taken is close to the limit"
+    ]
+  },
+  "interview_ended_manually": true
+}
