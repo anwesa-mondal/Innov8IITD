@@ -1,0 +1,30 @@
+{
+  "interview_id": "730b2c38-ec7c-41f3-823f-d350508b0e5d",
+  "timestamp": "2025-09-27T13:26:45.628976",
+  "interview_type": "resume",
+  "conversation": [
+    {
+      "candidate": "Hi, I'm Anvisha and I'm a second year student.",
+      "evaluation": "The candidate introduced herself, but the name does not match the one on the resume. Let's proceed with the interview.",
+      "next_question": "Anwesa, can you tell me about your current education and what sparked your interest in Computer Science Engineering with a specialization in Artificial Intelligence?"
+    },
+    {
+      "candidate": "I'm a second year student and I'm pursuing computer science engineering with specialization in artificial intelligence as you mentioned. And I was really fascinated about how AI works and how machine can learn things that humans are learning.",
+      "evaluation": "The candidate has shown interest in AI and machine learning, which aligns with their specialization. However, the response could be more detailed and specific.",
+      "next_question": "That's interesting, Anwesa. Your resume mentions a strong academic background, including courses like Introduction to Data Science and Data Structures. Can you elaborate on how these courses have helped you understand the fundamentals of AI and its applications?"
+    },
+    {
+      "candidate": "Yes, I totally can. So, Introduction to Data Science has helped me to understand how data analysis works and how data cleaning and data manipulation works, which is a prerequisite step for machine learning. And data structures and algorithms have helped me to gain a deeper knowledge of computer science. So, yeah.",
+      "evaluation": "The candidate has provided a brief overview of how their courses have helped them understand AI fundamentals, but the response could be more detailed and specific, especially in terms of how data structures and algorithms are applied in AI.",
+      "next_question": "That's a good start, Anwesa. Can you give me an example of how you've applied data structures and algorithms in one of your projects, such as the SafeDrive project mentioned in your resume, and how it contributed to the overall goal of the project?"
+    },
+    {
+      "candidate": "I haven't applied data structures and algorithms in Safe Drive. I have applied data science in Safe Drive. And I have applied machine learning and deep learning in Safe Drive.",
+      "evaluation": "The candidate has clarified that they applied data science, machine learning, and deep learning in the SafeDrive project, but not specifically data structures and algorithms. This response is somewhat disappointing as it doesn't demonstrate a clear connection between the courses they've taken and the project.",
+      "next_question": "Let's dive deeper into the SafeDrive project, Anwesa. You mentioned using the Gemini API for GenAI-driven analytics. Can you explain how you utilized this API to evaluate driving patterns and optimize claim adjudication, and what specific machine learning or deep learning techniques you employed in this process?"
+    }
+  ],
+  "resume_id": "36244e16-60b0-45b3-aa47-7ec9a8d13fb7",
+  "topics": [],
+  "total_interactions": 4
+}

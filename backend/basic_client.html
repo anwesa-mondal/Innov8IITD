@@ -1,0 +1,262 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Basic WS Test</title>
+  <style>
+    body { font-family: system-ui, -apple-system, Segoe UI, Roboto, sans-serif; margin: 16px; }
+    fieldset { padding: 10px; margin-bottom: 12px; }
+    input[type=text], textarea { width: 100%; max-width: 720px; }
+    #log { white-space: pre-wrap; background: #f5f5f5; border: 1px solid #ccc; padding: 8px; height: 260px; overflow: auto; }
+    .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
+    .small { font-size: 12px; color: #666; }
+  </style>
+</head>
+<body>
+  <h2>Basic WebSocket Tester</h2>
+
+  <fieldset>
+    <legend>Server</legend>
+    <div class="row">
+      <label>HTTP Base:&nbsp;</label>
+      <input id="httpBase" type="text" value="http://127.0.0.1:8000" style="max-width:340px;" />
+      <label>WS URL:&nbsp;</label>
+      <input id="wsUrl" type="text" value="ws://127.0.0.1:8000/ws" style="max-width:340px;" />
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <button id="btnConnect">Connect</button>
+      <button id="btnDisconnect" disabled>Disconnect</button>
+      <span id="status" class="small">Disconnected</span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Mode</legend>
+    <div class="row">
+      <label><input type="radio" name="mode" value="topics" checked> Topics</label>
+      <button id="btnFetchTopics">Fetch Topics</button>
+      <button id="btnInitTopics" disabled>Init Topics Interview</button>
+    </div>
+    <div id="topics" style="margin-top:8px;"></div>
+    <hr />
+    <div class="row">
+      <label><input type="radio" name="mode" value="resume"> Resume</label>
+      <input id="resumeFile" type="file" accept="application/pdf" />
+      <button id="btnUpload">Upload Resume</button>
+      <button id="btnInitResume" disabled>Init Resume Interview</button>
+      <span id="resumeInfo" class="small"></span>
+    </div>
+  </fieldset>
+
+  <fieldset>
+    <legend>Conversation</legend>
+    <div id="log"></div>
+    <div style="margin-top:8px;">
+      <textarea id="answer" rows="3" placeholder="Type your answer..."></textarea>
+    </div>
+    <div class="row" style="margin-top:8px;">
+      <button id="btnSend" disabled>Send Answer</button>
+      <button id="btnEnd" disabled>End</button>
+      <span id="phase" class="small"></span>
+    </div>
+  </fieldset>
+
+  <script>
+    const qs = (s) => document.querySelector(s);
+    const logEl = qs('#log');
+    let ws = null;
+    let resumeId = null;
+    let isSpeaking = false;
+
+    function setPhase(text) {
+      qs('#phase').textContent = text || '';
+    }
+
+    function startServerVAD() {
+      if (!ws || ws.readyState !== WebSocket.OPEN) return;
+      setPhase('Listening...');
+      ws.send(JSON.stringify({ type: 'record_audio' }));
+    }
+
+    function speakAndThenRecord(text) {
+      if (!text || !text.trim()) return;
+      setPhase('Speaking...');
+      try {
+        if (!('speechSynthesis' in window)) {
+          // Fallback: if TTS unsupported, just start VAD after a short delay
+          setTimeout(startServerVAD, 400);
+          return;
+        }
+        window.speechSynthesis.cancel();
+        const u = new SpeechSynthesisUtterance(text);
+        u.rate = 1.0; u.pitch = 1.0; u.volume = 1.0;
+        isSpeaking = true;
+        u.onend = () => { isSpeaking = false; startServerVAD(); };
+        u.onerror = () => { isSpeaking = false; startServerVAD(); };
+        window.speechSynthesis.speak(u);
+      } catch (e) {
+        // On any error, proceed to VAD to keep flow
+        isSpeaking = false;
+        startServerVAD();
+      }
+    }
+
+    function log(line) {
+      const div = document.createElement('div');
+      div.textContent = line;
+      logEl.appendChild(div);
+      logEl.scrollTop = logEl.scrollHeight;
+    }
+
+    function setConnected(v) {
+      qs('#status').textContent = v ? 'Connected' : 'Disconnected';
+      qs('#btnConnect').disabled = v;
+      qs('#btnDisconnect').disabled = !v;
+      qs('#btnSend').disabled = !v;
+      qs('#btnEnd').disabled = !v;
+    }
+
+    function currentMode() {
+      return document.querySelector('input[name="mode"]:checked').value;
+    }
+
+    // Connect
+    qs('#btnConnect').addEventListener('click', () => {
+      const url = qs('#wsUrl').value.trim();
+      ws = new WebSocket(url);
+      ws.onopen = () => { setConnected(true); log('WS connected'); };
+      ws.onclose = () => {
+        setConnected(false);
+        log('WS closed');
+        try { if ('speechSynthesis' in window) window.speechSynthesis.cancel(); } catch {}
+        setPhase('');
+      };
+      ws.onerror = (e) => { log('WS error: ' + (e.message || '')); };
+      ws.onmessage = (ev) => {
+        try {
+          const msg = JSON.parse(ev.data);
+          if (msg.type === 'ready') {
+            log('READY: ' + (msg.message || ''));
+            if (msg.next_question) {
+              log('Q: ' + msg.next_question);
+              speakAndThenRecord(msg.next_question);
+            }
+          } else if (msg.type === 'assessment') {
+            if (msg.evaluation) log('Evaluation: ' + msg.evaluation);
+            if (msg.hint) log('Hint: ' + msg.hint);
+            if (msg.next_question) {
+              log('Q: ' + msg.next_question);
+              speakAndThenRecord(msg.next_question);
+            } else {
+              setPhase('');
+            }
+            if (msg.final_feedback) log('Final: ' + msg.final_feedback);
+          } else if (msg.type === 'listening') {
+            log('LISTENING: ' + msg.message);
+            setPhase('Listening...');
+          } else if (msg.type === 'transcribed') {
+            log('TRANSCRIBED: ' + msg.transcript);
+            qs('#answer').value = msg.transcript;
+            setPhase('');
+          } else if (msg.type === 'no_speech') {
+            log('NO SPEECH: ' + msg.message);
+            setPhase('');
+          } else if (msg.type === 'invalid_transcript') {
+            log('INVALID: ' + msg.message + (msg.transcript ? (' | raw=' + msg.transcript) : ''));
+            setPhase('');
+          } else if (msg.type === 'ended') {
+            log('ENDED');
+            setPhase('');
+          } else if (msg.type === 'error') {
+            log('ERROR: ' + msg.error);
+            setPhase('');
+          } else {
+            log('MSG: ' + ev.data);
+          }
+        } catch (e) {
+          log(ev.data);
+        }
+      };
+    });
+
+    // Disconnect
+    qs('#btnDisconnect').addEventListener('click', () => { if (ws) ws.close(); });
+
+    // Fetch topics
+    qs('#btnFetchTopics').addEventListener('click', async () => {
+      const base = qs('#httpBase').value.trim();
+      try {
+        const resp = await fetch(base + '/topics');
+        const data = await resp.json();
+        const topicsDiv = qs('#topics');
+        topicsDiv.innerHTML = '';
+        (data.topics || []).forEach(t => {
+          const id = 't_' + t.replace(/\W/g, '_');
+          const label = document.createElement('label');
+          label.style.display = 'inline-block';
+          label.style.marginRight = '10px';
+          label.innerHTML = `<input type="checkbox" id="${id}" value="${t}"> ${t}`;
+          topicsDiv.appendChild(label);
+        });
+        qs('#btnInitTopics').disabled = false;
+        log('Topics loaded: ' + (data.topics || []).join(', '));
+      } catch (e) {
+        log('Failed to load topics: ' + e.message);
+      }
+    });
+
+    // Init topics
+    qs('#btnInitTopics').addEventListener('click', () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) { log('Connect WS first'); return; }
+      const selected = Array.from(document.querySelectorAll('#topics input[type="checkbox"]:checked')).map(x => x.value);
+      if (selected.length === 0) { log('Select at least one topic'); return; }
+      ws.send(JSON.stringify({ type: 'init', mode: 'topics', topics: selected }));
+      log('Init (topics): ' + selected.join(', '));
+    });
+
+    // Upload resume
+    qs('#btnUpload').addEventListener('click', async () => {
+      const base = qs('#httpBase').value.trim();
+      const file = qs('#resumeFile').files[0];
+      if (!file) { log('Select a PDF first'); return; }
+      const fd = new FormData();
+      fd.append('file', file);
+      try {
+        const resp = await fetch(base + '/upload_resume', { method: 'POST', body: fd });
+        if (!resp.ok) { log('Upload failed: ' + resp.status); return; }
+        const data = await resp.json();
+        resumeId = data.resume_id;
+        qs('#resumeInfo').textContent = `Uploaded (pages=${data.pages})`;
+        qs('#btnInitResume').disabled = !resumeId;
+        log('Resume uploaded. id=' + resumeId);
+      } catch (e) {
+        log('Upload error: ' + e.message);
+      }
+    });
+
+    // Init resume
+    qs('#btnInitResume').addEventListener('click', () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) { log('Connect WS first'); return; }
+      if (!resumeId) { log('Upload resume first'); return; }
+      ws.send(JSON.stringify({ type: 'init', mode: 'resume', resume_id: resumeId }));
+      log('Init (resume)');
+    });
+
+    // Send answer
+    qs('#btnSend').addEventListener('click', () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) { log('Connect WS first'); return; }
+      const text = qs('#answer').value.trim();
+      if (!text) { log('Answer empty'); return; }
+      ws.send(JSON.stringify({ type: 'answer', text }));
+      qs('#answer').value = '';
+    });
+
+    // End
+    qs('#btnEnd').addEventListener('click', () => {
+      if (!ws || ws.readyState !== WebSocket.OPEN) { log('Connect WS first'); return; }
+      ws.send(JSON.stringify({ type: 'end' }));
+    });
+  </script>
+</body>
+</html>
