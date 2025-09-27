@@ -4,6 +4,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Code2, FileText, Play, Lightbulb, Headphones, Zap, ArrowRight, Loader2, Video, Mic, Upload, Bot, User, Star, Trophy, Target } from 'lucide-react';
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
+import Navbar from '../../components/Navbar';
 
 export default function InterviewPage() {
   const [showInstructions, setShowInstructions] = useState(true);
@@ -26,6 +27,20 @@ export default function InterviewPage() {
     } else {
       router.push('/interview/resume');
     }
+  };
+
+  // Navigation handlers for Navbar
+  const handleTakeInterview = () => {
+    // Already on interview page, do nothing or scroll to top
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+  };
+
+  const handleViewResults = () => {
+    router.push('/interview/results');
+  };
+
+  const handleGoHome = () => {
+    router.push('/');
   };
 
   // Instructions Screen Component
@@ -58,41 +73,15 @@ export default function InterviewPage() {
     ];
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-        {/* Header */}
-        <div className="bg-white shadow-sm border-b border-gray-200">
-          <div className="max-w-6xl mx-auto px-6 py-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <motion.div
-                  initial={{ scale: 0, rotate: -180 }}
-                  animate={{ scale: 1, rotate: 0 }}
-                  transition={{ type: "spring", duration: 0.8 }}
-                  className="w-12 h-12 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg"
-                >
-                  <Code2 className="w-6 h-6 text-white" />
-                </motion.div>
-                <div>
-                  <h1 className="text-2xl font-bold text-gray-900">
-                    Code<span className="text-indigo-600">Win</span> AI Interview
-                  </h1>
-                  <p className="text-sm text-gray-600">Practice makes perfect. Get ready for your technical interview.</p>
-                </div>
-              </div>
-              <motion.div
-                initial={{ opacity: 0, x: 20 }}
-                animate={{ opacity: 1, x: 0 }}
-                transition={{ delay: 0.5 }}
-                className="flex items-center space-x-2 text-sm text-gray-500"
-              >
-                <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
-                <span>Ready for interview</span>
-              </motion.div>
-            </div>
-          </div>
-        </div>
-
-        <div className="max-w-6xl mx-auto p-6">
+      <>
+        <Navbar 
+          onTakeInterview={handleTakeInterview}
+          onViewResults={handleViewResults}
+          onGoHome={handleGoHome}
+          theme="dark"
+        />
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50" style={{ paddingTop: '80px' }}>
+          <div className="max-w-6xl mx-auto p-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
@@ -207,7 +196,8 @@ export default function InterviewPage() {
             </motion.p>
           </motion.div>
         </div>
-      </div>
+        </div>
+      </>
     );
   };
 
@@ -237,29 +227,14 @@ export default function InterviewPage() {
     ];
 
     return (
-      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50">
-        {/* Header */}
-        <div className="bg-white shadow-sm border-b border-gray-200">
-          <div className="max-w-6xl mx-auto px-6 py-4">
-            <div className="flex items-center space-x-3">
-              <motion.div
-                initial={{ scale: 0, rotate: -180 }}
-                animate={{ scale: 1, rotate: 0 }}
-                transition={{ type: "spring", duration: 0.8 }}
-                className="w-12 h-12 bg-gradient-to-r from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg"
-              >
-                <Code2 className="w-6 h-6 text-white" />
-              </motion.div>
-              <div>
-                <h1 className="text-2xl font-bold text-gray-900">
-                  Code<span className="text-indigo-600">Win</span> AI Interview
-                </h1>
-                <p className="text-sm text-gray-600">Choose your interview format</p>
-              </div>
-            </div>
-          </div>
-        </div>
-
+      <>
+        <Navbar 
+          onTakeInterview={handleTakeInterview}
+          onViewResults={handleViewResults}
+          onGoHome={handleGoHome}
+          theme="dark"
+        />
+        <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-blue-50" style={{ paddingTop: '80px' }}>
         <div className="max-w-6xl mx-auto p-6">
           <motion.div
             initial={{ opacity: 0, y: 20 }}
@@ -391,7 +366,8 @@ export default function InterviewPage() {
             ))}
           </motion.div>
         </div>
-      </div>
+        </div>
+      </>
     );
   };
 
