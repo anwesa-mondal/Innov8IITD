@@ -12,21 +12,13 @@ export default function Home() {
   const router = useRouter();
 
   useEffect(() => {
-    // Check if typewriter has been shown in this session
-    const hasShownTypewriter = sessionStorage.getItem('typewriter_shown');
-    
-    if (!hasShownTypewriter) {
-      setShowTypewriter(true);
-    } else {
-      setShowTypewriter(false);
-    }
-    
+    // Always show typewriter on page load/refresh
+    setShowTypewriter(true);
     setIsLoading(false);
   }, []);
 
   const handleTypewriterComplete = () => {
-    // Mark typewriter as shown for this session
-    sessionStorage.setItem('typewriter_shown', 'true');
+    // Don't store in sessionStorage - let it show on every refresh
     setShowTypewriter(false);
   };
 
