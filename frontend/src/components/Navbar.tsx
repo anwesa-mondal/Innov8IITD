@@ -7,9 +7,10 @@ interface NavbarProps {
   onTakeInterview?: () => void;
   onViewResults?: () => void;
   onGoHome?: () => void;
+  theme?: 'light' | 'dark';
 }
 
-const Navbar = ({ onTakeInterview, onViewResults, onGoHome }: NavbarProps) => {
+const Navbar = ({ onTakeInterview, onViewResults, onGoHome, theme = 'light' }: NavbarProps) => {
   const [isScrolled, setIsScrolled] = useState(false);
 
   // Handle undefined prop functions with defaults

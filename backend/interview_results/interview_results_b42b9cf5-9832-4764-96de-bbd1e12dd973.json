@@ -1,0 +1,122 @@
+{
+  "session_id": "b42b9cf5-9832-4764-96de-bbd1e12dd973",
+  "topics": [
+    "Arrays",
+    "Strings"
+  ],
+  "total_questions": 4,
+  "completed_questions": 1,
+  "average_score": 0,
+  "individual_scores": [],
+  "total_time": 12.730245590209961,
+  "voice_responses": [],
+  "code_submissions": [],
+  "questions_data": [
+    {
+      "question": "Write a function to solve a easy problem related to Arrays, Strings. Explain your approach first.",
+      "difficulty": "easy",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Think about the data structures you need",
+        "Consider the time complexity",
+        "Don't forget edge cases"
+      ],
+      "test_cases": [
+        {
+          "input": "test input",
+          "output": "expected output",
+          "explanation": "basic test case"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem approach",
+        "Code implementation",
+        "Edge cases"
+      ],
+      "id": 1
+    },
+    {
+      "question": "Write a function to solve a medium problem related to Arrays, Strings. Explain your approach first.",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Think about the data structures you need",
+        "Consider the time complexity",
+        "Don't forget edge cases"
+      ],
+      "test_cases": [
+        {
+          "input": "test input",
+          "output": "expected output",
+          "explanation": "basic test case"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem approach",
+        "Code implementation",
+        "Edge cases"
+      ],
+      "id": 2
+    },
+    {
+      "question": "Write a function to solve a medium problem related to Arrays, Strings. Explain your approach first.",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Think about the data structures you need",
+        "Consider the time complexity",
+        "Don't forget edge cases"
+      ],
+      "test_cases": [
+        {
+          "input": "test input",
+          "output": "expected output",
+          "explanation": "basic test case"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem approach",
+        "Code implementation",
+        "Edge cases"
+      ],
+      "id": 3
+    },
+    {
+      "question": "Write a function to solve a hard problem related to Arrays, Strings. Explain your approach first.",
+      "difficulty": "hard",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Think about the data structures you need",
+        "Consider the time complexity",
+        "Don't forget edge cases"
+      ],
+      "test_cases": [
+        {
+          "input": "test input",
+          "output": "expected output",
+          "explanation": "basic test case"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem approach",
+        "Code implementation",
+        "Edge cases"
+      ],
+      "id": 4
+    }
+  ],
+  "final_evaluation": null,
+  "interview_ended_manually": true
+}

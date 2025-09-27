@@ -1,10 +1,11 @@
 'use client';
 
 import { motion, AnimatePresence } from 'framer-motion';
-import { Code2, Mic, CheckCircle, Loader2, Play, ArrowLeft, MessageSquare, Bot, User, Zap, Activity, Send, Camera, CameraOff } from 'lucide-react';
+import { Code2, Mic, CheckCircle, Loader2, Play, ArrowLeft, MessageSquare, Bot, User, Zap, Activity, Send, Camera, CameraOff, PlayCircle, Square, Monitor, Volume2, VolumeX, Settings, Maximize2, Terminal, Eye, Brain, Cpu, X } from 'lucide-react';
 import { useState, useRef, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Navbar from '../../../components/Navbar';
 
 interface WebSocketMessage {
   type: string;
@@ -18,791 +19,818 @@ interface WebSocketMessage {
   topics?: string[];
   interview_id?: string;
   download_url?: string;
+  code_feedback?: string;
+  question_complete?: boolean;
+  score?: number;
+  difficulty?: string;
+  results?: any;
+  feedback?: string;
 }
 
-export default function TechnicalInterviewPage() {
+interface Question {
+  id: number;
+  question: string;
+  code: string;
+  score: number;
+  timeSpent: number;
+  hintsUsed: number;
+  completed: boolean;
+}
+
+interface ChatMessage {
+  id: string;
+  type: 'user' | 'ai' | 'system';
+  content: string;
+  timestamp: Date;
+}
+
+export default function TechnicalInterview() {
   const router = useRouter();
-  const [isConnecting, setIsConnecting] = useState(false);
-  const [isConnected, setIsConnected] = useState(false);
-  const [phase, setPhase] = useState('');
-  const [topics, setTopics] = useState<string[]>([]);
-  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
-  const [logs, setLogs] = useState<string[]>([]);
-  const [answer, setAnswer] = useState('');
-  const [isSpeaking, setIsSpeaking] = useState(false);
-  const [interviewStarted, setInterviewStarted] = useState(false);
-  const [isCameraOn, setIsCameraOn] = useState(false);
-  const [cameraStream, setCameraStream] = useState<MediaStream | null>(null);
-  
-  // Code editor states
-  const [showCodeEditor, setShowCodeEditor] = useState(false);
+  const [currentQuestion, setCurrentQuestion] = useState('');
+  const [questions, setQuestions] = useState<Question[]>([]);
+  const [currentQuestionIndex, setCurrentQuestionIndex] = useState(0);
+  const [questionStartTime, setQuestionStartTime] = useState(Date.now());
+  const [hintsUsed, setHintsUsed] = useState(0);
+  const [approachDiscussed, setApproachDiscussed] = useState(false);
+  const [hintTimer, setHintTimer] = useState<NodeJS.Timeout | null>(null);
+  const [autoHintEnabled, setAutoHintEnabled] = useState(true);
+  const [isRecordingApproach, setIsRecordingApproach] = useState(false);
   const [code, setCode] = useState('');
-  const [isCodeMode, setIsCodeMode] = useState(false);
-  
+  const [language, setLanguage] = useState('python');
+  const [isConnected, setIsConnected] = useState(false);
+  const [isConnecting, setIsConnecting] = useState(false);
+  const [interviewStarted, setInterviewStarted] = useState(false);
+  const [selectedTopics, setSelectedTopics] = useState<string[]>([]);
+  const [isListening, setIsListening] = useState(false);
+  const [transcript, setTranscript] = useState('');
+  const [chatMessages, setChatMessages] = useState<ChatMessage[]>([]);
+  const [cameraEnabled, setCameraEnabled] = useState(false);
+  const [audioEnabled, setAudioEnabled] = useState(true);
+  const [isFullscreen, setIsFullscreen] = useState(false);
+  const [interviewResults, setInterviewResults] = useState<any>(null);
+  const [showResults, setShowResults] = useState(false);
+
   const wsRef = useRef<WebSocket | null>(null);
-  const logsEndRef = useRef<HTMLDivElement>(null);
+  const recognitionRef = useRef<any>(null);
   const videoRef = useRef<HTMLVideoElement>(null);
+  const cameraStreamRef = useRef<MediaStream | null>(null);
+  const chatContainerRef = useRef<HTMLDivElement>(null);
 
-  const HTTP_BASE = 'http://127.0.0.1:8000';
-  const WS_URL = 'ws://127.0.0.1:8000/ws';
+  const AVAILABLE_TOPICS = [
+    "Arrays", "Strings", "Linked Lists", "Trees", "Graphs", "Dynamic Programming",
+    "Sorting", "Searching", "Hash Tables", "Stacks & Queues"
+  ];
 
-  const addLog = (message: string) => {
-    setLogs(prev => [...prev, message]);
+  const addChatMessage = (type: 'user' | 'ai' | 'system', content: string) => {
+    const newMessage: ChatMessage = {
+      id: Date.now().toString(),
+      type,
+      content,
+      timestamp: new Date()
+    };
+    setChatMessages(prev => [...prev, newMessage]);
+    
+    // Auto-scroll to bottom
+    setTimeout(() => {
+      if (chatContainerRef.current) {
+        chatContainerRef.current.scrollTop = chatContainerRef.current.scrollHeight;
+      }
+    }, 100);
   };
 
-  const setPhaseStatus = (text: string) => {
-    setPhase(text);
-  };
-
-  const startCamera = async () => {
+  // Initialize camera
+  const initializeCamera = async () => {
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ 
-        video: { 
-          width: { ideal: 1280 },
-          height: { ideal: 720 }
-        }, 
-        audio: false 
-      });
-      setCameraStream(stream);
-      setIsCameraOn(true);
+      const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
       if (videoRef.current) {
         videoRef.current.srcObject = stream;
+        cameraStreamRef.current = stream;
+        setCameraEnabled(true);
       }
     } catch (error) {
-      console.error('Error accessing camera:', error);
-      addLog('Camera access denied or not available');
+      console.error('Camera initialization failed:', error);
+      addChatMessage('system', '📷 Camera access denied or unavailable');
     }
   };
 
   const stopCamera = () => {
-    if (cameraStream) {
-      cameraStream.getTracks().forEach(track => track.stop());
-      setCameraStream(null);
-      setIsCameraOn(false);
-      if (videoRef.current) {
-        videoRef.current.srcObject = null;
-      }
+    if (cameraStreamRef.current) {
+      cameraStreamRef.current.getTracks().forEach(track => track.stop());
+      setCameraEnabled(false);
     }
   };
 
-  const toggleCamera = () => {
-    if (isCameraOn) {
-      stopCamera();
-    } else {
-      startCamera();
-    }
-  };
+  useEffect(() => {
+    initializeCamera();
+    return () => stopCamera();
+  }, []);
 
-  const startServerVAD = () => {
+  // Auto hint timer - gives hint every 30 seconds
+  useEffect(() => {
+    if (interviewStarted && autoHintEnabled && currentQuestion) {
+      if (hintTimer) clearTimeout(hintTimer);
+      
+      const timer = setTimeout(() => {
+        requestHint();
+      }, 30000);
+      
+      setHintTimer(timer);
+    }
+  }, [currentQuestion, interviewStarted, autoHintEnabled]);
+
+  const requestHint = () => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
-    setPhaseStatus('Listening...');
-    wsRef.current.send(JSON.stringify({ type: 'record_audio' }));
-  };
 
-  const speakAndThenRecord = (text: string) => {
-    if (!text || !text.trim()) return;
-    setPhaseStatus('Speaking...');
-    try {
-      if (!('speechSynthesis' in window)) {
-        setTimeout(startServerVAD, 400);
-        return;
-      }
-      window.speechSynthesis.cancel();
-      const utterance = new SpeechSynthesisUtterance(text);
-      utterance.rate = 1.0;
-      utterance.pitch = 1.0;
-      utterance.volume = 1.0;
-      setIsSpeaking(true);
-      utterance.onend = () => {
-        setIsSpeaking(false);
-        startServerVAD();
-      };
-      utterance.onerror = () => {
-        setIsSpeaking(false);
-        startServerVAD();
-      };
-      window.speechSynthesis.speak(utterance);
-    } catch (e) {
-      setIsSpeaking(false);
-      startServerVAD();
-    }
-  };
-
-  const connectWebSocket = async () => {
-    setIsConnecting(true);
-    
-    await new Promise(resolve => setTimeout(resolve, 1000));
-    
-    wsRef.current = new WebSocket(WS_URL);
-    
-    wsRef.current.onopen = () => {
-      setIsConnected(true);
-      setIsConnecting(false);
-      addLog('WS connected');
-    };
-
-    wsRef.current.onclose = () => {
-      setIsConnected(false);
-      setIsConnecting(false);
-      addLog('WS closed');
-      try {
-        if ('speechSynthesis' in window) window.speechSynthesis.cancel();
-      } catch {}
-      setPhaseStatus('');
-    };
-
-    wsRef.current.onerror = (e) => {
-      setIsConnecting(false);
-      addLog('WS error occurred');
-    };
-
-    wsRef.current.onmessage = (ev) => {
-      try {
-        const msg: WebSocketMessage = JSON.parse(ev.data);
-        
-        if (msg.type === 'ready') {
-          addLog('READY: ' + (msg.message || ''));
-          if (msg.next_question) {
-            addLog('Q: ' + msg.next_question);
-            
-            // Check if this is a coding question
-            const isCodingQuestion = /write.*code|implement|function|algorithm|program|solve.*problem|code.*solution/i.test(msg.next_question);
-            setIsCodeMode(isCodingQuestion);
-            setShowCodeEditor(isCodingQuestion);
-            
-            if (isCodingQuestion) {
-              setPhaseStatus('Please write your code and click Submit when ready');
-              // For coding questions, don't auto-start recording
-            } else {
-              speakAndThenRecord(msg.next_question);
-            }
-          }
-        } else if (msg.type === 'assessment') {
-          if (msg.evaluation) addLog('Evaluation: ' + msg.evaluation);
-          if (msg.hint) addLog('Hint: ' + msg.hint);
-          if (msg.next_question) {
-            addLog('Q: ' + msg.next_question);
-            
-            // Check if this is a coding question
-            const isCodingQuestion = /write.*code|implement|function|algorithm|program|solve.*problem|code.*solution/i.test(msg.next_question);
-            setIsCodeMode(isCodingQuestion);
-            setShowCodeEditor(isCodingQuestion);
-            
-            if (isCodingQuestion) {
-              setPhaseStatus('Please write your code and click Submit when ready');
-              // For coding questions, don't auto-start recording
-            } else {
-              speakAndThenRecord(msg.next_question);
-            }
-          } else {
-            setPhaseStatus('');
-            setShowCodeEditor(false);
-            setIsCodeMode(false);
-          }
-          if (msg.final_feedback) addLog('Final: ' + msg.final_feedback);
-        } else if (msg.type === 'listening') {
-          addLog('LISTENING: ' + msg.message);
-          setPhaseStatus('Listening...');
-        } else if (msg.type === 'transcribed') {
-          addLog('TRANSCRIBED: ' + msg.transcript);
-          setAnswer(msg.transcript || '');
-          setPhaseStatus('');
-        } else if (msg.type === 'no_speech') {
-          addLog('NO SPEECH: ' + msg.message);
-          setPhaseStatus('');
-        } else if (msg.type === 'invalid_transcript') {
-          addLog('INVALID: ' + msg.message + (msg.transcript ? (' | raw=' + msg.transcript) : ''));
-          setPhaseStatus('');
-        } else if (msg.type === 'ended') {
-          addLog('ENDED');
-          setPhaseStatus('');
-          // Handle interview end with results
-          if (msg.interview_id && msg.download_url) {
-            // Redirect to results page with the interview ID
-            router.push(`/interview/results?id=${msg.interview_id}&download_url=${encodeURIComponent(msg.download_url)}`);
-          }
-        } else if (msg.type === 'error') {
-          addLog('ERROR: ' + msg.error);
-          setPhaseStatus('');
-        } else {
-          addLog('MSG: ' + ev.data);
-        }
-      } catch (e) {
-        addLog(ev.data);
-      }
-    };
-  };
-
-  const disconnectWebSocket = () => {
-    if (wsRef.current) {
-      wsRef.current.close();
-    }
-  };
-
-  const fetchTopics = async () => {
-    try {
-      const resp = await fetch(HTTP_BASE + '/topics');
-      const data = await resp.json();
-      setTopics(data.topics || []);
-      addLog('Topics loaded: ' + (data.topics || []).join(', '));
-    } catch (e) {
-      addLog('Failed to load topics: ' + (e as Error).message);
-    }
-  };
-
-  const initTopicsInterview = () => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      addLog('Connect WS first');
-      return;
-    }
-    if (selectedTopics.length === 0) {
-      addLog('Select at least one topic');
-      return;
-    }
-    wsRef.current.send(JSON.stringify({ 
-      type: 'init', 
-      mode: 'topics', 
-      topics: selectedTopics 
+    setHintsUsed(prev => prev + 1);
+    wsRef.current.send(JSON.stringify({
+      type: 'request_hint',
+      question: currentQuestion,
+      code: code,
+      language: language
     }));
-    addLog('Init (topics): ' + selectedTopics.join(', '));
-    setInterviewStarted(true);
-    // Auto-start camera when interview begins
-    startCamera();
   };
 
-  const sendAnswer = () => {
+  const discussApproach = () => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      addLog('Connect WS first');
+      addChatMessage('system', '❌ WebSocket connection not available');
       return;
     }
-    if (!answer.trim()) {
-      addLog('Answer empty');
-      return;
-    }
-    wsRef.current.send(JSON.stringify({ 
-      type: 'answer', 
-      text: answer 
+    
+    addChatMessage('system', '🎙️ Starting approach discussion...');
+    wsRef.current.send(JSON.stringify({
+      type: 'record_audio',
+      question: currentQuestion
     }));
-    setAnswer('');
+    setIsRecordingApproach(true);
+  };
+
+  const stopApproachDiscussion = () => {
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
+      addChatMessage('system', '❌ WebSocket connection not available');
+      return;
+    }
+    
+    addChatMessage('system', '⏹️ Stopping approach discussion...');
+    wsRef.current.send(JSON.stringify({
+      type: 'stop_recording'
+    }));
+    setIsRecordingApproach(false);
   };
 
   const submitCode = () => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      addLog('Connect WS first');
-      return;
-    }
-    if (!code.trim()) {
-      addLog('Code empty');
-      return;
-    }
+    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    const timeSpent = Date.now() - questionStartTime;
     
-    addLog('A: [Code Submitted]');
-    setPhaseStatus('AI is analyzing your code...');
-    
-    wsRef.current.send(JSON.stringify({ 
-      type: 'code_submission', 
-      code: code 
+    wsRef.current.send(JSON.stringify({
+      type: 'submit_code',
+      question: currentQuestion,
+      code: code,
+      language: language,
+      time_spent: timeSpent,
+      hints_used: hintsUsed,
+      approach_discussed: approachDiscussed
     }));
-    setCode('');
-    setShowCodeEditor(false);
-    setIsCodeMode(false);
+
+    addChatMessage('user', `💻 Submitted ${language} solution`);
+  };
+
+  const getLanguageTemplate = (lang: string): string => {
+    const templates = {
+      python: '# Write your solution here\ndef solution():\n    pass\n\n# Test your code\nif __name__ == "__main__":\n    result = solution()\n    print(result)',
+      javascript: '// Write your solution here\nfunction solution() {\n    // Your code here\n}\n\n// Test your code\nconsole.log(solution());',
+      java: 'public class Solution {\n    public static void main(String[] args) {\n        Solution sol = new Solution();\n        // Test your solution\n    }\n    \n    // Write your solution here\n    public void solution() {\n        \n    }\n}',
+      cpp: '#include <iostream>\n#include <vector>\nusing namespace std;\n\nclass Solution {\npublic:\n    // Write your solution here\n    void solution() {\n        \n    }\n};\n\nint main() {\n    Solution sol;\n    // Test your solution\n    return 0;\n}'
+    };
+    return templates[lang as keyof typeof templates] || templates.python;
+  };
+
+  const speakText = (text: string) => {
+    if (!audioEnabled) return;
+    
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.rate = 0.9;
+    utterance.pitch = 1;
+    speechSynthesis.speak(utterance);
   };
 
   const endInterview = () => {
-    if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
-      addLog('Connect WS first');
-      return;
+    if (wsRef.current?.readyState === WebSocket.OPEN) {
+      wsRef.current.send(JSON.stringify({
+        type: 'end_interview'
+      }));
     }
-    wsRef.current.send(JSON.stringify({ type: 'end' }));
-    // Auto-stop camera when interview ends
-    stopCamera();
   };
 
-  const handleTopicToggle = (topic: string) => {
-    setSelectedTopics(prev => 
-      prev.includes(topic) 
-        ? prev.filter(t => t !== topic)
-        : [...prev, topic]
-    );
+  const downloadResults = (sessionId: string) => {
+    const downloadUrl = `http://127.0.0.1:8000/download_results/${sessionId}`;
+    const link = document.createElement('a');
+    link.href = downloadUrl;
+    link.download = `interview_results_${sessionId}.json`;
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
   };
 
-  useEffect(() => {
-    // Auto-connect and fetch topics when component mounts
-    const initializePage = async () => {
-      await connectWebSocket();
-      await fetchTopics();
-    };
-    initializePage();
-  }, []);
+  const connectWebSocket = async (topics: string[]) => {
+    if (wsRef.current?.readyState === WebSocket.OPEN) return;
 
-  useEffect(() => {
-    if (logsEndRef.current) {
-      logsEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    setIsConnecting(true);
+    addChatMessage('system', '🔄 Initializing AI Interview System...');
+
+    try {
+      const ws = new WebSocket('ws://localhost:8000/ws/technical');
+      
+      ws.onopen = () => {
+        addChatMessage('system', '✅ Connected to AI Interviewer');
+        setIsConnected(true);
+        setIsConnecting(false);
+        setInterviewStarted(true);
+        setQuestionStartTime(Date.now());
+        
+        // Initialize technical interview
+        ws.send(JSON.stringify({
+          type: 'init_technical',
+          topics: selectedTopics
+        }));
+      };
+
+      ws.onmessage = (event) => {
+        const data: WebSocketMessage = JSON.parse(event.data);
+        handleWebSocketMessage(data);
+      };
+
+      ws.onclose = () => {
+        addChatMessage('system', '❌ Connection terminated');
+        setIsConnected(false);
+        setInterviewStarted(false);
+      };
+
+      ws.onerror = (error) => {
+        addChatMessage('system', '❌ System error: ' + error);
+        setIsConnecting(false);
+      };
+
+      wsRef.current = ws;
+    } catch (error) {
+      addChatMessage('system', '❌ Failed to initialize: ' + error);
+      setIsConnecting(false);
     }
-  }, [logs]);
+  };
 
-  useEffect(() => {
-    return () => {
-      if (wsRef.current) {
-        wsRef.current.close();
-      }
-      // Cleanup camera stream on unmount
-      stopCamera();
-    };
-  }, []);
+  const handleWebSocketMessage = (data: WebSocketMessage) => {
+    switch (data.type) {
+      case 'question':
+        setCurrentQuestion(data.next_question || '');
+        setQuestionStartTime(Date.now());
+        setHintsUsed(0);
+        setApproachDiscussed(false);
+        setCode(getLanguageTemplate(language));
+        addChatMessage('ai', data.next_question || '');
+        speakText(data.next_question || '');
+        break;
+        
+      case 'hint':
+        addChatMessage('ai', `💡 ${data.hint}`);
+        speakText(data.hint || '');
+        break;
+        
+      case 'code_feedback':
+        addChatMessage('ai', `📝 ${data.code_feedback}`);
+        break;
+        
+      case 'approach_feedback':
+      case 'approach_analyzed':
+        addChatMessage('ai', `🎯 ${data.feedback}`);
+        setApproachDiscussed(true);
+        setIsRecordingApproach(false);
+        if (data.transcript) {
+          addChatMessage('user', data.transcript);
+        }
+        break;
+        
+      case 'listening':
+        addChatMessage('system', '🎙️ Listening...');
+        setIsRecordingApproach(true);
+        break;
+        
+      case 'no_speech':
+      case 'invalid_transcript':
+        addChatMessage('system', `⚠️ ${data.message}`);
+        setIsRecordingApproach(false);
+        break;
+        
+      case 'recording_stopped':
+        addChatMessage('system', '⏹️ Recording stopped');
+        setIsRecordingApproach(false);
+        break;
+        
+      case 'question_complete':
+        const timeSpent = Date.now() - questionStartTime;
+        const newQuestion: Question = {
+          id: currentQuestionIndex + 1,
+          question: currentQuestion,
+          code: code,
+          score: data.score || 0,
+          timeSpent: timeSpent,
+          hintsUsed: hintsUsed,
+          completed: true
+        };
+        
+        setQuestions(prev => [...prev, newQuestion]);
+        setCurrentQuestionIndex(prev => prev + 1);
+        addChatMessage('ai', `✅ Score: ${data.score}/100`);
+        
+        if (data.next_question) {
+          setTimeout(() => {
+            setCurrentQuestion(data.next_question || '');
+            setQuestionStartTime(Date.now());
+            setHintsUsed(0);
+            setApproachDiscussed(false);
+            setCode(getLanguageTemplate(language));
+            addChatMessage('ai', data.next_question || '');
+            speakText(data.next_question || '');
+          }, 2000);
+        }
+        break;
+        
+      case 'interview_complete':
+        addChatMessage('ai', '🎉 Interview Complete!');
+        addChatMessage('ai', data.final_feedback || '');
+        if (data.results) {
+          setInterviewResults(data.results);
+          setShowResults(true);
+        }
+        break;
+        
+      case 'error':
+        addChatMessage('system', `❌ ${data.error}`);
+        setIsRecordingApproach(false);
+        break;
+    }
+  };
 
   if (!interviewStarted) {
     return (
-      <motion.div
-        initial={{ opacity: 0, scale: 0.95 }}
-        animate={{ opacity: 1, scale: 1 }}
-        transition={{ duration: 0.5 }}
-        className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50 flex items-center justify-center p-6"
-      >
-        <div className="max-w-4xl mx-auto text-center">
-          {/* Header */}
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 overflow-hidden">
+        <Navbar theme="dark" />
+        
+        <div className="flex items-center justify-center min-h-screen pt-20">
           <motion.div
-            initial={{ opacity: 0, y: -30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.1, duration: 0.6 }}
-            className="mb-12"
+            initial={{ opacity: 0, scale: 0.9 }}
+            animate={{ opacity: 1, scale: 1 }}
+            className="max-w-2xl mx-auto p-8 bg-white/5 backdrop-blur-xl rounded-3xl border border-white/10 shadow-2xl"
           >
-            <Link href="/interview" className="inline-flex items-center space-x-2 text-indigo-600 hover:text-indigo-700 transition-colors mb-6">
-              <ArrowLeft className="w-5 h-5" />
-              <span>Back to Selection</span>
-            </Link>
-            
-            <div className="flex items-center justify-center space-x-2 mb-6">
-              <Code2 className="w-10 h-10 text-indigo-600" />
-              <span className="text-3xl font-bold">
-                Code<span className="text-indigo-600">Win</span>
-              </span>
+            <div className="text-center mb-8">
+              <motion.div
+                initial={{ y: -20 }}
+                animate={{ y: 0 }}
+                className="flex items-center justify-center mb-4"
+              >
+                <Brain className="w-12 h-12 text-cyan-400 mr-3" />
+                <h1 className="text-4xl font-bold bg-gradient-to-r from-cyan-400 to-purple-400 bg-clip-text text-transparent">
+                  AI Technical Interview
+                </h1>
+              </motion.div>
+              <p className="text-gray-300 text-lg">Select your focus areas to begin the assessment</p>
             </div>
-            
-            <motion.h1
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.3, duration: 0.8 }}
-              className="text-4xl lg:text-5xl font-bold text-gray-900 mb-4"
-            >
-              Technical
-              <span className="block bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent">
-                Interview
-              </span>
-            </motion.h1>
-            
-            <motion.p
-              initial={{ opacity: 0 }}
-              animate={{ opacity: 1 }}
-              transition={{ delay: 0.5, duration: 0.8 }}
-              className="text-xl text-gray-600 max-w-2xl mx-auto"
-            >
-              Select the technical topics you'd like to practice with our AI interviewer
-            </motion.p>
-          </motion.div>
 
-          {/* Topics Selection */}
-          <motion.div
-            initial={{ opacity: 0, y: 30 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ delay: 0.7, duration: 0.6 }}
-            className="bg-white rounded-xl shadow-lg p-8 max-w-3xl mx-auto"
-          >
-            <h3 className="text-xl font-semibold mb-6 flex items-center justify-center space-x-2">
-              <Code2 className="w-6 h-6 text-blue-600" />
-              <span>Select Technical Topics</span>
-            </h3>
-            
-            {topics.length > 0 ? (
-              <>
-                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3 mb-8 max-h-80 overflow-y-auto">
-                  {topics.map((topic) => (
-                    <label key={topic} className="flex items-center space-x-3 p-4 rounded-lg hover:bg-gray-50 cursor-pointer border border-gray-200 hover:border-indigo-300 transition-all">
+            <div className="space-y-6">
+              <div>
+                <h3 className="text-xl font-semibold text-white mb-4 flex items-center">
+                  <Cpu className="w-5 h-5 mr-2 text-cyan-400" />
+                  Topics
+                </h3>
+                <div className="grid grid-cols-2 gap-3">
+                  {AVAILABLE_TOPICS.map((topic, index) => (
+                    <motion.label
+                      key={topic}
+                      initial={{ opacity: 0, x: -20 }}
+                      animate={{ opacity: 1, x: 0 }}
+                      transition={{ delay: index * 0.1 }}
+                      className={`flex items-center space-x-3 p-4 rounded-xl cursor-pointer transition-all border ${
+                        selectedTopics.includes(topic)
+                          ? 'bg-cyan-500/20 border-cyan-400/50 text-cyan-200'
+                          : 'bg-white/5 border-white/10 text-gray-300 hover:bg-white/10'
+                      }`}
+                    >
                       <input
                         type="checkbox"
                         checked={selectedTopics.includes(topic)}
-                        onChange={() => handleTopicToggle(topic)}
-                        className="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500"
+                        onChange={(e) => {
+                          if (e.target.checked) {
+                            setSelectedTopics([...selectedTopics, topic]);
+                          } else {
+                            setSelectedTopics(selectedTopics.filter(t => t !== topic));
+                          }
+                        }}
+                        className="w-4 h-4 rounded border-gray-300"
                       />
-                      <span className="text-sm font-medium text-gray-700">{topic}</span>
-                    </label>
+                      <span className="font-medium">{topic}</span>
+                    </motion.label>
                   ))}
                 </div>
-                
-                <motion.button
-                  whileHover={{ scale: 1.05 }}
-                  whileTap={{ scale: 0.95 }}
-                  onClick={initTopicsInterview}
-                  disabled={selectedTopics.length === 0 || !isConnected}
-                  className="w-full px-8 py-4 bg-indigo-600 text-white rounded-lg font-semibold hover:bg-indigo-700 transition-colors disabled:bg-gray-300 disabled:cursor-not-allowed flex items-center justify-center space-x-3"
-                >
-                  <Play className="w-5 h-5" />
-                  <span>Start Technical Interview</span>
-                  <span className="text-sm opacity-75">({selectedTopics.length} topics selected)</span>
-                </motion.button>
-              </>
-            ) : (
-              <div className="flex items-center justify-center space-x-2 text-gray-600 py-8">
-                <Loader2 className="w-6 h-6 animate-spin" />
-                <span>Loading topics...</span>
               </div>
-            )}
 
-            {/* Connection Status */}
-            <div className="mt-6 pt-6 border-t border-gray-200">
-              <div className="flex items-center justify-center space-x-2">
-                {isConnected ? (
+              <motion.button
+                whileHover={{ scale: 1.02, boxShadow: "0 20px 40px -10px rgba(6, 182, 212, 0.4)" }}
+                whileTap={{ scale: 0.98 }}
+                onClick={() => connectWebSocket(selectedTopics)}
+                disabled={selectedTopics.length === 0 || isConnecting}
+                className="w-full py-4 bg-gradient-to-r from-cyan-500 to-purple-600 text-white rounded-xl font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg flex items-center justify-center space-x-2"
+              >
+                {isConnecting ? (
                   <>
-                    <CheckCircle className="w-5 h-5 text-green-500" />
-                    <span className="text-sm text-gray-600">Connected to AI Interviewer</span>
-                  </>
-                ) : isConnecting ? (
-                  <>
-                    <Loader2 className="w-5 h-5 animate-spin text-indigo-500" />
-                    <span className="text-sm text-gray-600">Connecting...</span>
+                    <Loader2 className="w-5 h-5 animate-spin" />
+                    <span>Initializing AI System...</span>
                   </>
                 ) : (
                   <>
-                    <div className="w-5 h-5 rounded-full bg-red-500" />
-                    <span className="text-sm text-gray-600">Connection Failed</span>
+                    <Play className="w-5 h-5" />
+                    <span>Start Interview</span>
                   </>
                 )}
-              </div>
+              </motion.button>
             </div>
           </motion.div>
         </div>
-      </motion.div>
+      </div>
     );
   }
 
-  // Interview Console View
   return (
-    <motion.div
-      initial={{ opacity: 0, scale: 0.95 }}
-      animate={{ opacity: 1, scale: 1 }}
-      transition={{ duration: 0.5 }}
-      className="min-h-screen bg-gradient-to-br from-slate-900 via-blue-900 to-indigo-900 p-6"
-    >
-      <div className="max-w-6xl mx-auto">
-        {/* Enhanced Header */}
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-blue-900 to-purple-900 overflow-hidden">
+      <Navbar theme="dark" />
+      
+      {/* Main Interview Interface */}
+      <div className="pt-16 h-screen flex flex-col">
+        {/* Header */}
         <motion.div
           initial={{ opacity: 0, y: -20 }}
           animate={{ opacity: 1, y: 0 }}
-          className="flex items-center justify-between mb-8 bg-white/10 backdrop-blur-lg rounded-2xl p-6 border border-white/20"
+          className="flex items-center justify-between px-6 py-4 bg-black/20 backdrop-blur-lg border-b border-white/10"
         >
           <div className="flex items-center space-x-4">
-            <motion.div
-              animate={{ rotate: [0, 360] }}
-              transition={{ duration: 20, repeat: Infinity, ease: "linear" }}
-              className="relative"
-            >
-              <Code2 className="w-10 h-10 text-cyan-400" />
-              <div className="absolute inset-0 bg-cyan-400/20 rounded-full blur-lg" />
-            </motion.div>
+            <Brain className="w-8 h-8 text-cyan-400" />
             <div>
-              <span className="text-3xl font-black text-white">
-                Code<span className="text-cyan-400">Win</span>
-              </span>
-              <div className="flex items-center space-x-2 mt-1">
-                <Activity className="w-4 h-4 text-green-400" />
-                <span className="text-sm text-gray-300">Technical Interview Active</span>
+              <h1 className="text-xl font-bold text-white">AI Technical Interview</h1>
+              <div className="flex items-center space-x-4 text-sm text-gray-300">
+                <span>Question {currentQuestionIndex + 1}</span>
+                <span>•</span>
+                <span>Hints: {hintsUsed}</span>
+                <span>•</span>
+                <span>Time: {Math.floor((Date.now() - questionStartTime) / 1000)}s</span>
+                {approachDiscussed && <span className="text-green-400">✓ Approach</span>}
               </div>
             </div>
           </div>
-          
-          {/* Enhanced Connection Status */}
-          <div className="flex items-center space-x-6">
-            <motion.div 
-              className="flex items-center space-x-3 bg-green-500/20 px-4 py-2 rounded-full border border-green-500/30"
-              animate={{ 
-                boxShadow: ["0 0 0 0 rgba(34, 197, 94, 0.4)", "0 0 0 10px rgba(34, 197, 94, 0)", "0 0 0 0 rgba(34, 197, 94, 0.4)"]
-              }}
-              transition={{ duration: 2, repeat: Infinity }}
-            >
-              <motion.div
-                animate={{ scale: [1, 1.2, 1] }}
-                transition={{ duration: 2, repeat: Infinity }}
-              >
-                <CheckCircle className="w-5 h-5 text-green-400" />
-              </motion.div>
-              <span className="text-sm font-medium text-green-300">AI Connected</span>
-            </motion.div>
+
+          <div className="flex items-center space-x-3">
+            <div className="flex items-center space-x-2 bg-green-500/20 px-3 py-1 rounded-full">
+              <div className="w-2 h-2 bg-green-400 rounded-full animate-pulse"></div>
+              <span className="text-sm text-green-300">Live</span>
+            </div>
             
             <motion.button
-              whileHover={{ scale: 1.05, boxShadow: "0 10px 25px -5px rgba(239, 68, 68, 0.4)" }}
+              whileHover={{ scale: 1.05 }}
               whileTap={{ scale: 0.95 }}
-              onClick={endInterview}
-              className="px-6 py-3 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold hover:from-red-600 hover:to-red-700 transition-all shadow-lg"
+              onClick={() => router.push('/')}
+              className="p-2 bg-red-500/20 rounded-lg text-red-300 hover:bg-red-500/30 transition-all"
             >
-              End Interview
+              <ArrowLeft className="w-4 h-4" />
             </motion.button>
           </div>
         </motion.div>
 
-        {/* Split Layout: Camera + Interview Console */}
-        <div className="flex space-x-6">
-          {/* Left Side - Camera Stream */}
+        {/* Main Content Area */}
+        <div className="flex-1 flex overflow-hidden">
+          {/* Left Side - Code Editor */}
           <motion.div
-            initial={{ opacity: 0, x: -20 }}
+            initial={{ opacity: 0, x: -50 }}
             animate={{ opacity: 1, x: 0 }}
-            className="w-1/3 bg-white/10 backdrop-blur-lg rounded-2xl border border-white/20 overflow-hidden shadow-2xl"
+            className="flex-1 flex flex-col bg-black/40 backdrop-blur-lg border-r border-white/10"
           >
-            <div className="p-4 border-b border-white/20 flex items-center justify-between">
-              <div className="flex items-center space-x-3">
-                <div className="p-2 bg-cyan-500/20 rounded-lg">
-                  <Camera className="w-5 h-5 text-cyan-400" />
-                </div>
-                <h3 className="text-lg font-bold text-white">Video Preview</h3>
+            {/* Language Selector */}
+            <div className="flex items-center justify-between p-4 bg-black/30 border-b border-white/10">
+              <div className="flex items-center space-x-4">
+                <Terminal className="w-5 h-5 text-cyan-400" />
+                <select
+                  value={language}
+                  onChange={(e) => {
+                    setLanguage(e.target.value);
+                    setCode(getLanguageTemplate(e.target.value));
+                  }}
+                  className="bg-white/10 border border-white/20 rounded-lg px-3 py-1 text-white focus:outline-none focus:ring-2 focus:ring-cyan-400"
+                >
+                  <option value="python">Python</option>
+                  <option value="javascript">JavaScript</option>
+                  <option value="java">Java</option>
+                  <option value="cpp">C++</option>
+                </select>
               </div>
+              
+              <div className="flex items-center space-x-2">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={requestHint}
+                  className="px-3 py-1 bg-yellow-500/20 text-yellow-300 rounded-lg text-sm hover:bg-yellow-500/30 transition-all"
+                >
+                  💡 Hint
+                </motion.button>
+                
+                {!approachDiscussed && (
+                  <motion.button
+                    whileHover={{ scale: 1.05 }}
+                    whileTap={{ scale: 0.95 }}
+                    onClick={isRecordingApproach ? stopApproachDiscussion : discussApproach}
+                    className={`px-3 py-1 rounded-lg text-sm transition-all ${
+                      isRecordingApproach
+                        ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30'
+                        : 'bg-green-500/20 text-green-300 hover:bg-green-500/30'
+                    }`}
+                  >
+                    <Mic className={`w-4 h-4 inline mr-1 ${isRecordingApproach ? 'animate-pulse' : ''}`} />
+                    {isRecordingApproach ? 'Stop' : 'Discuss'}
+                  </motion.button>
+                )}
+              </div>
+            </div>
+
+            {/* Code Editor */}
+            <div className="flex-1 p-4">
+              <textarea
+                value={code}
+                onChange={(e) => setCode(e.target.value)}
+                className="w-full h-full bg-transparent text-gray-100 font-mono text-sm focus:outline-none resize-none leading-relaxed"
+                placeholder="Write your solution here..."
+                spellCheck={false}
+              />
+            </div>
+
+            {/* Submit Button */}
+            <div className="p-4 bg-black/30 border-t border-white/10 space-y-2">
               <motion.button
-                whileHover={{ scale: 1.05 }}
-                whileTap={{ scale: 0.95 }}
-                onClick={toggleCamera}
-                className={`flex items-center space-x-2 px-3 py-2 rounded-lg text-sm font-medium transition-colors ${
-                  isCameraOn 
-                    ? 'bg-red-500/20 text-red-300 hover:bg-red-500/30 border border-red-500/30' 
-                    : 'bg-cyan-500/20 text-cyan-300 hover:bg-cyan-500/30 border border-cyan-500/30'
-                }`}
+                whileHover={{ scale: 1.02, boxShadow: "0 10px 30px -5px rgba(6, 182, 212, 0.4)" }}
+                whileTap={{ scale: 0.98 }}
+                onClick={submitCode}
+                disabled={!code.trim()}
+                className="w-full py-3 bg-gradient-to-r from-cyan-500 to-blue-600 text-white rounded-lg font-semibold disabled:opacity-50 disabled:cursor-not-allowed shadow-lg flex items-center justify-center space-x-2"
               >
-                {isCameraOn ? <CameraOff className="w-4 h-4" /> : <Camera className="w-4 h-4" />}
-                <span>{isCameraOn ? 'Stop' : 'Start'}</span>
+                <Send className="w-4 h-4" />
+                <span>Submit Solution</span>
+              </motion.button>
+              
+              <motion.button
+                whileHover={{ scale: 1.02, boxShadow: "0 10px 30px -5px rgba(239, 68, 68, 0.4)" }}
+                whileTap={{ scale: 0.98 }}
+                onClick={endInterview}
+                className="w-full py-2 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-lg font-semibold shadow-lg flex items-center justify-center space-x-2"
+              >
+                <span>End Interview</span>
               </motion.button>
             </div>
-            
-            <div className="relative aspect-video bg-black/30">
-              {isCameraOn ? (
+          </motion.div>
+
+          {/* Right Side - Question & Chat */}
+          <div className="w-96 flex flex-col">
+            {/* Question Panel */}
+            <motion.div
+              initial={{ opacity: 0, y: -20 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="p-4 bg-black/40 backdrop-blur-lg border-b border-white/10"
+            >
+              <div className="flex items-center justify-between mb-3">
+                <h3 className="text-lg font-semibold text-white flex items-center">
+                  <Eye className="w-5 h-5 mr-2 text-purple-400" />
+                  Current Question
+                </h3>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => speakText(currentQuestion)}
+                  className="p-1 text-gray-400 hover:text-white transition-colors"
+                >
+                  <Volume2 className="w-4 h-4" />
+                </motion.button>
+              </div>
+              
+              <div className="bg-white/5 rounded-lg p-4 border border-purple-400/20">
+                <p className="text-gray-200 text-sm leading-relaxed">
+                  {currentQuestion || 'Loading question...'}
+                </p>
+                {currentQuestion && !approachDiscussed && (
+                  <div className="mt-3 p-2 bg-emerald-500/10 border border-emerald-500/20 rounded-lg">
+                    <p className="text-xs text-emerald-300 flex items-center">
+                      <Mic className="w-3 h-3 mr-1" />
+                      Discuss your approach first for better scoring!
+                    </p>
+                  </div>
+                )}
+              </div>
+            </motion.div>
+
+            {/* Camera Preview */}
+            <motion.div
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              className="p-4 bg-black/40 backdrop-blur-lg border-b border-white/10"
+            >
+              <div className="flex items-center justify-between mb-2">
+                <h4 className="text-sm font-medium text-white flex items-center">
+                  <Camera className="w-4 h-4 mr-2 text-cyan-400" />
+                  Camera
+                </h4>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={cameraEnabled ? stopCamera : initializeCamera}
+                  className={`p-1 rounded transition-colors ${
+                    cameraEnabled ? 'text-green-400' : 'text-gray-400'
+                  }`}
+                >
+                  {cameraEnabled ? <Camera className="w-4 h-4" /> : <CameraOff className="w-4 h-4" />}
+                </motion.button>
+              </div>
+              
+              <div className="relative bg-black/60 rounded-lg overflow-hidden" style={{ aspectRatio: '4/3' }}>
                 <video
                   ref={videoRef}
                   autoPlay
                   muted
-                  playsInline
                   className="w-full h-full object-cover"
                 />
-              ) : (
-                <div className="w-full h-full flex items-center justify-center text-gray-400">
-                  <div className="text-center">
-                    <Camera className="w-16 h-16 mx-auto mb-4 text-gray-500" />
-                    <p className="text-sm">Camera will start automatically</p>
-                    <p className="text-xs text-gray-500 mt-1">when interview begins</p>
+                {!cameraEnabled && (
+                  <div className="absolute inset-0 flex items-center justify-center">
+                    <CameraOff className="w-8 h-8 text-gray-500" />
                   </div>
-                </div>
-              )}
-            </div>
-          </motion.div>
+                )}
+              </div>
+            </motion.div>
 
-          {/* Right Side - Enhanced Interview Console */}
-          <motion.div
-            initial={{ opacity: 0, x: 20 }}
-            animate={{ opacity: 1, x: 0 }}
-            className="flex-1 bg-white/5 backdrop-blur-lg rounded-2xl border border-white/10 overflow-hidden shadow-2xl"
-          >
-          {/* Console Header */}
-          <div className="flex items-center justify-between p-6 bg-gradient-to-r from-blue-600/20 to-purple-600/20 border-b border-white/10">
-            <div className="flex items-center space-x-3">
-              <div className="p-2 bg-blue-500/20 rounded-lg">
-                <MessageSquare className="w-5 h-5 text-blue-400" />
+            {/* AI Chat */}
+            <motion.div
+              initial={{ opacity: 0, x: 50 }}
+              animate={{ opacity: 1, x: 0 }}
+              className="flex-1 flex flex-col bg-black/40 backdrop-blur-lg"
+            >
+              <div className="flex items-center justify-between p-4 bg-black/30 border-b border-white/10">
+                <h3 className="text-lg font-semibold text-white flex items-center">
+                  <Bot className="w-5 h-5 mr-2 text-cyan-400" />
+                  AI Assistant
+                </h3>
+                <motion.button
+                  whileHover={{ scale: 1.1 }}
+                  whileTap={{ scale: 0.9 }}
+                  onClick={() => setAudioEnabled(!audioEnabled)}
+                  className={`p-1 rounded transition-colors ${
+                    audioEnabled ? 'text-green-400' : 'text-gray-400'
+                  }`}
+                >
+                  {audioEnabled ? <Volume2 className="w-4 h-4" /> : <VolumeX className="w-4 h-4" />}
+                </motion.button>
               </div>
-              <div>
-                <h3 className="text-xl font-bold text-white">Interview Console</h3>
-                <p className="text-sm text-gray-300">Real-time AI conversation</p>
-              </div>
-            </div>
-            {phase && (
-              <motion.div 
-                className="flex items-center space-x-3 bg-indigo-500/20 px-4 py-2 rounded-full border border-indigo-500/30"
-                animate={{ opacity: [0.7, 1, 0.7] }}
-                transition={{ duration: 2, repeat: Infinity }}
+
+              <div
+                ref={chatContainerRef}
+                className="flex-1 overflow-y-auto p-4 space-y-3"
               >
-                {phase === 'Listening...' && (
-                  <>
+                <AnimatePresence>
+                  {chatMessages.map((message) => (
                     <motion.div
-                      animate={{ rotate: 360 }}
-                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
-                    >
-                      <Loader2 className="w-5 h-5 text-indigo-400" />
-                    </motion.div>
-                    <span className="text-sm font-medium text-indigo-300">AI is listening...</span>
-                  </>
-                )}
-                {phase === 'Speaking...' && (
-                  <>
-                    <motion.div
-                      animate={{ scale: [1, 1.3, 1] }}
-                      transition={{ duration: 0.5, repeat: Infinity }}
-                    >
-                      <Mic className="w-5 h-5 text-purple-400" />
-                    </motion.div>
-                    <span className="text-sm font-medium text-purple-300">AI is speaking...</span>
-                  </>
-                )}
-              </motion.div>
-            )}
-          </div>
-          
-          {/* Enhanced Logs Section */}
-          <div className="p-6">
-            <div className="bg-black/30 rounded-xl p-4 h-80 overflow-y-auto mb-6 border border-white/10 relative">
-              {/* Logs Header */}
-              <div className="flex items-center space-x-2 mb-4 pb-2 border-b border-white/10">
-                <Bot className="w-4 h-4 text-cyan-400" />
-                <span className="text-sm font-medium text-gray-300">Conversation Log</span>
-              </div>
-              
-              {/* Logs Content */}
-              <div className="space-y-3 font-mono text-sm">
-                {logs.map((log, index) => {
-                  const isQuestion = log.startsWith('Q:');
-                  const isReady = log.startsWith('READY:');
-                  const isEvaluation = log.startsWith('Evaluation:');
-                  const isHint = log.startsWith('Hint:');
-                  const isTranscribed = log.startsWith('TRANSCRIBED:');
-                  const isListening = log.startsWith('LISTENING:');
-                  
-                  return (
-                    <motion.div
-                      key={index}
-                      initial={{ opacity: 0, x: -20 }}
-                      animate={{ opacity: 1, x: 0 }}
-                      transition={{ delay: index * 0.1 }}
-                      className={`flex items-start space-x-3 p-3 rounded-lg ${
-                        isQuestion ? 'bg-blue-500/20 border-l-4 border-blue-400' :
-                        isEvaluation ? 'bg-green-500/20 border-l-4 border-green-400' :
-                        isHint ? 'bg-yellow-500/20 border-l-4 border-yellow-400' :
-                        isTranscribed ? 'bg-purple-500/20 border-l-4 border-purple-400' :
-                        isListening ? 'bg-indigo-500/20 border-l-4 border-indigo-400' :
-                        'bg-white/5'
+                      key={message.id}
+                      initial={{ opacity: 0, y: 20 }}
+                      animate={{ opacity: 1, y: 0 }}
+                      exit={{ opacity: 0, y: -20 }}
+                      className={`flex items-start space-x-3 ${
+                        message.type === 'user' ? 'justify-end' : ''
                       }`}
                     >
-                      {isQuestion && <Bot className="w-4 h-4 text-blue-400 mt-0.5 flex-shrink-0" />}
-                      {isTranscribed && <User className="w-4 h-4 text-purple-400 mt-0.5 flex-shrink-0" />}
-                      {(isEvaluation || isHint) && <Zap className="w-4 h-4 text-yellow-400 mt-0.5 flex-shrink-0" />}
-                      <span className={`${
-                        isQuestion ? 'text-blue-300' :
-                        isEvaluation ? 'text-green-300' :
-                        isHint ? 'text-yellow-300' :
-                        isTranscribed ? 'text-purple-300' :
-                        'text-gray-300'
-                      } leading-relaxed`}>
-                        {log}
-                      </span>
+                      {message.type !== 'user' && (
+                        <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                          message.type === 'ai' ? 'bg-cyan-500/20' : 'bg-gray-500/20'
+                        }`}>
+                          {message.type === 'ai' ? (
+                            <Bot className="w-4 h-4 text-cyan-400" />
+                          ) : (
+                            <Zap className="w-4 h-4 text-gray-400" />
+                          )}
+                        </div>
+                      )}
+                      
+                      <div
+                        className={`max-w-xs px-3 py-2 rounded-lg text-sm ${
+                          message.type === 'user'
+                            ? 'bg-cyan-500/20 text-cyan-100 ml-8'
+                            : message.type === 'ai'
+                            ? 'bg-white/10 text-gray-200'
+                            : 'bg-yellow-500/20 text-yellow-200'
+                        }`}
+                      >
+                        <p className="leading-relaxed">{message.content}</p>
+                        <span className="text-xs opacity-60 mt-1 block">
+                          {message.timestamp.toLocaleTimeString()}
+                        </span>
+                      </div>
+                      
+                      {message.type === 'user' && (
+                        <div className="w-8 h-8 rounded-full bg-blue-500/20 flex items-center justify-center">
+                          <User className="w-4 h-4 text-blue-400" />
+                        </div>
+                      )}
                     </motion.div>
-                  );
-                })}
-                <div ref={logsEndRef} />
+                  ))}
+                </AnimatePresence>
               </div>
-              
-              {/* Gradient Overlay at bottom */}
-              <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-black/30 to-transparent pointer-events-none" />
-            </div>
-            
-            {/* Enhanced Answer Input */}
-            <div className="space-y-4">
-              {showCodeEditor ? (
-                /* Code Editor Mode */
-                <div className="space-y-3">
-                  <div className="flex items-center space-x-2">
-                    <Code2 className="w-4 h-4 text-cyan-400" />
-                    <span className="text-sm font-medium text-white">Code Editor</span>
-                  </div>
-                  <div className="relative">
-                    <textarea
-                      value={code}
-                      onChange={(e) => setCode(e.target.value)}
-                      placeholder="Write your code here..."
-                      className="w-full px-4 py-4 bg-black/30 border border-white/20 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 resize-none text-white placeholder-gray-400 backdrop-blur-sm font-mono text-sm"
-                      rows={12}
-                      style={{ fontFamily: 'Monaco, Consolas, "Lucida Console", monospace' }}
-                    />
-                    <div className="absolute bottom-3 right-3 text-xs text-gray-400">
-                      {code.length} characters
-                    </div>
-                  </div>
-                  <div className="flex space-x-3">
-                    <motion.button
-                      whileHover={{ 
-                        scale: 1.02,
-                        boxShadow: "0 10px 25px -5px rgba(34, 197, 94, 0.4)"
-                      }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={submitCode}
-                      disabled={!code.trim()}
-                      className="flex-1 flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-green-500 to-emerald-500 text-white rounded-xl font-semibold hover:from-green-600 hover:to-emerald-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                    >
-                      <Send className="w-5 h-5" />
-                      <span>Submit Code</span>
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ scale: 1.02 }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={() => setCode('')}
-                      className="px-6 py-4 bg-white/10 border border-white/20 text-white rounded-xl font-semibold hover:bg-white/20 transition-all"
-                    >
-                      Clear
-                    </motion.button>
-                    <motion.button
-                      whileHover={{ 
-                        scale: 1.02,
-                        boxShadow: "0 10px 25px -5px rgba(239, 68, 68, 0.4)"
-                      }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={endInterview}
-                      className="px-6 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold hover:from-red-600 hover:to-red-700 transition-all shadow-lg"
-                    >
-                      End Interview
-                    </motion.button>
-                  </div>
-                </div>
-              ) : (
-                /* Regular Text Input Mode */
-                <>
-                  <div className="relative">
-                    <textarea
-                      value={answer}
-                      onChange={(e) => setAnswer(e.target.value)}
-                      placeholder="Type your answer here (or speak and it will be filled automatically)..."
-                      className="w-full px-4 py-4 bg-white/10 border border-white/20 rounded-xl focus:ring-2 focus:ring-cyan-500 focus:border-cyan-500 resize-none text-white placeholder-gray-400 backdrop-blur-sm"
-                      rows={4}
-                    />
-                    {/* Character count */}
-                    <div className="absolute bottom-3 right-3 text-xs text-gray-400">
-                      {answer.length} characters
-                    </div>
-                  </div>
-                  
-                  <div className="flex space-x-4">
-                    <motion.button
-                      whileHover={{ 
-                        scale: 1.02,
-                        boxShadow: "0 10px 25px -5px rgba(59, 130, 246, 0.4)"
-                      }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={sendAnswer}
-                      disabled={!answer.trim()}
-                      className="flex-1 flex items-center justify-center space-x-2 px-6 py-4 bg-gradient-to-r from-blue-500 to-cyan-500 text-white rounded-xl font-semibold hover:from-blue-600 hover:to-cyan-600 transition-all disabled:opacity-50 disabled:cursor-not-allowed shadow-lg"
-                    >
-                      <Send className="w-5 h-5" />
-                      <span>Send Answer</span>
-                    </motion.button>
-                    
-                    <motion.button
-                      whileHover={{ 
-                        scale: 1.02,
-                        boxShadow: "0 10px 25px -5px rgba(239, 68, 68, 0.4)"
-                      }}
-                      whileTap={{ scale: 0.98 }}
-                      onClick={endInterview}
-                      className="px-6 py-4 bg-gradient-to-r from-red-500 to-red-600 text-white rounded-xl font-semibold hover:from-red-600 hover:to-red-700 transition-all shadow-lg"
-                    >
-                      End Interview
-                    </motion.button>
-                  </div>
-                </>
-              )}
-            </div>
+            </motion.div>
           </div>
-        </motion.div>
         </div>
       </div>
-    </motion.div>
+
+      {/* Results Modal */}
+      {showResults && interviewResults && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          className="fixed inset-0 bg-black/80 backdrop-blur-sm flex items-center justify-center z-50 p-4"
+        >
+          <motion.div
+            initial={{ scale: 0.9, opacity: 0 }}
+            animate={{ scale: 1, opacity: 1 }}
+            className="bg-gradient-to-br from-slate-900 via-purple-900/20 to-slate-900 border border-white/20 rounded-2xl p-6 max-w-2xl w-full max-h-[80vh] overflow-y-auto"
+          >
+            <div className="flex items-center justify-between mb-6">
+              <h2 className="text-2xl font-bold text-white">Interview Results</h2>
+              <motion.button
+                whileHover={{ scale: 1.1 }}
+                whileTap={{ scale: 0.9 }}
+                onClick={() => setShowResults(false)}
+                className="text-gray-400 hover:text-white transition-colors"
+              >
+                <X className="w-6 h-6" />
+              </motion.button>
+            </div>
+
+            <div className="space-y-4 text-gray-200">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="bg-black/30 p-4 rounded-lg">
+                  <h3 className="text-cyan-400 font-semibold mb-2">Final Score</h3>
+                  <p className="text-2xl font-bold text-white">{interviewResults.average_score}/100</p>
+                </div>
+                <div className="bg-black/30 p-4 rounded-lg">
+                  <h3 className="text-cyan-400 font-semibold mb-2">Questions Completed</h3>
+                  <p className="text-2xl font-bold text-white">{interviewResults.completed_questions}/{interviewResults.total_questions}</p>
+                </div>
+              </div>
+
+              <div className="bg-black/30 p-4 rounded-lg">
+                <h3 className="text-cyan-400 font-semibold mb-2">Total Time</h3>
+                <p className="text-white">{Math.round(interviewResults.total_time / 60)} minutes</p>
+              </div>
+
+              {interviewResults.final_evaluation && (
+                <div className="bg-black/30 p-4 rounded-lg">
+                  <h3 className="text-cyan-400 font-semibold mb-2">Detailed Feedback</h3>
+                  <div className="space-y-2 text-sm">
+                    <p><strong>Correctness:</strong> {interviewResults.final_evaluation.correctness}</p>
+                    <p><strong>Approach Quality:</strong> {interviewResults.final_evaluation.approach_quality}</p>
+                    <p><strong>Code Quality:</strong> {interviewResults.final_evaluation.code_quality}</p>
+                    {interviewResults.final_evaluation.areas_for_improvement && (
+                      <div>
+                        <strong>Areas for Improvement:</strong>
+                        <ul className="list-disc list-inside mt-1 space-y-1">
+                          {interviewResults.final_evaluation.areas_for_improvement.map((area: string, index: number) => (
+                            <li key={index}>{area}</li>
+                          ))}
+                        </ul>
+                      </div>
+                    )}
+                  </div>
+                </div>
+              )}
+
+              <div className="flex space-x-4 pt-4">
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => downloadResults(interviewResults.session_id)}
+                  className="flex-1 py-3 bg-gradient-to-r from-green-500 to-emerald-600 text-white rounded-lg font-semibold shadow-lg flex items-center justify-center space-x-2"
+                >
+                  <span>Download Results</span>
+                </motion.button>
+                <motion.button
+                  whileHover={{ scale: 1.05 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={() => setShowResults(false)}
+                  className="flex-1 py-3 bg-gradient-to-r from-gray-500 to-gray-600 text-white rounded-lg font-semibold shadow-lg"
+                >
+                  Close
+                </motion.button>
+              </div>
+            </div>
+          </motion.div>
+        </motion.div>
+      )}
+    </div>
   );
 }

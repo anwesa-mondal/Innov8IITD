@@ -1,0 +1,240 @@
+{
+  "session_id": "91ec4d1c-14d6-4500-879c-3ca38126af38",
+  "topics": [
+    "Arrays"
+  ],
+  "total_questions": 4,
+  "completed_questions": 4,
+  "average_score": 10.0,
+  "individual_scores": [
+    0,
+    0,
+    0,
+    40
+  ],
+  "total_time": 147.20254588127136,
+  "voice_responses": [
+    {
+      "transcript": "I'm doing.",
+      "type": "approach",
+      "timestamp": 1758984254.6982234,
+      "question_id": 1
+    }
+  ],
+  "code_submissions": [
+    {
+      "code": "#include <iostream>\n#include <vector>\nusing namespace std;\n\nclass Solution {\npublic:\n    // Write your solution here\n    void solution() {\n        \n    }\n};\n\nint main() {\n    Solution sol;\n    // Test your solution\n    return 0;\n}",
+      "language": "cpp",
+      "timestamp": 1758984295.8744032,
+      "question_id": 1,
+      "hints_used_so_far": 1
+    },
+    {
+      "code": "#include <iostream>\n#include <vector>\n#include <algorithm>\nusing namespace std;\n\nint maxSubarraySum(const vector<int>& arr) {\n    int maxSoFar = arr[0];\n    int currentMax = arr[0];\n\n    for (size_t i = 1; i < arr.size(); i++) {\n        currentMax = max(arr[i], currentMax + arr[i]);\n        maxSoFar = max(maxSoFar, currentMax);\n    }\n\n    return maxSoFar;\n}\n\n// Optional: To get the actual subarray\nvector<int> maxSubarray(const vector<int>& arr) {\n    int maxSoFar = arr[0], currentMax = arr[0];\n    int start = 0, end = 0, s = 0;\n\n    for (size_t i = 1; i < arr.size(); i++) {\n        if (arr[i] > currentMax + arr[i]) {\n            currentMax = arr[i];\n            s = i;\n        } else {\n            currentMax += arr[i];\n        }\n\n        if (currentMax > maxSoFar) {\n            maxSoFar = currentMax;\n            start = s;\n            end = i;\n        }\n    }\n\n    return vector<int>(arr.begin() + start, arr.begin() + end + 1);\n}\n\nint main() {\n    vector<int> arr = {-2, 1, -3, 4, -1, 2, 1, -5, 4};\n\n    cout << \"Maximum subarray sum: \" << maxSubarraySum(arr) << endl;\n\n    vector<int> subarray = maxSubarray(arr);\n    cout << \"Subarray with maximum sum: \";\n    for (int num : subarray) cout << num << \" \";\n    cout << endl;\n\n    return 0;\n}",
+      "language": "cpp",
+      "timestamp": 1758984314.3419948,
+      "question_id": 2,
+      "hints_used_so_far": 0
+    },
+    {
+      "code": "#include <iostream>\n#include <vector>\n#include <algorithm>\nusing namespace std;\n\nint maxSubarraySum(const vector<int>& arr) {\n    int maxSoFar = arr[0];\n    int currentMax = arr[0];\n\n    for (size_t i = 1; i < arr.size(); i++) {\n        currentMax = max(arr[i], currentMax + arr[i]);\n        maxSoFar = max(maxSoFar, currentMax);\n    }\n\n    return maxSoFar;\n}\n\n// Optional: To get the actual subarray\nvector<int> maxSubarray(const vector<int>& arr) {\n    int maxSoFar = arr[0], currentMax = arr[0];\n    int start = 0, end = 0, s = 0;\n\n    for (size_t i = 1; i < arr.size(); i++) {\n        if (arr[i] > currentMax + arr[i]) {\n            currentMax = arr[i];\n            s = i;\n        } else {\n            currentMax += arr[i];\n        }\n\n        if (currentMax > maxSoFar) {\n            maxSoFar = currentMax;\n            start = s;\n            end = i;\n        }\n    }\n\n    return vector<int>(arr.begin() + start, arr.begin() + end + 1);\n}\n\nint main() {\n    vector<int> arr = {-2, 1, -3, 4, -1, 2, 1, -5, 4};\n\n    cout << \"Maximum subarray sum: \" << maxSubarraySum(arr) << endl;\n\n    vector<int> subarray = maxSubarray(arr);\n    cout << \"Subarray with maximum sum: \";\n    for (int num : subarray) cout << num << \" \";\n    cout << endl;\n\n    return 0;\n}",
+      "language": "cpp",
+      "timestamp": 1758984324.8642554,
+      "question_id": 3,
+      "hints_used_so_far": 0
+    },
+    {
+      "code": "#include <iostream>\n#include <vector>\n#include <algorithm>\nusing namespace std;\n\nint maxSubarraySum(const vector<int>& arr) {\n    int maxSoFar = arr[0];\n    int currentMax = arr[0];\n\n    for (size_t i = 1; i < arr.size(); i++) {\n        currentMax = max(arr[i], currentMax + arr[i]);\n        maxSoFar = max(maxSoFar, currentMax);\n    }\n\n    return maxSoFar;\n}\n\n// Optional: To get the actual subarray\nvector<int> maxSubarray(const vector<int>& arr) {\n    int maxSoFar = arr[0], currentMax = arr[0];\n    int start = 0, end = 0, s = 0;\n\n    for (size_t i = 1; i < arr.size(); i++) {\n        if (arr[i] > currentMax + arr[i]) {\n            currentMax = arr[i];\n            s = i;\n        } else {\n            currentMax += arr[i];\n        }\n\n        if (currentMax > maxSoFar) {\n            maxSoFar = currentMax;\n            start = s;\n            end = i;\n        }\n    }\n\n    return vector<int>(arr.begin() + start, arr.begin() + end + 1);\n}\n\nint main() {\n    vector<int> arr = {-2, 1, -3, 4, -1, 2, 1, -5, 4};\n\n    cout << \"Maximum subarray sum: \" << maxSubarraySum(arr) << endl;\n\n    vector<int> subarray = maxSubarray(arr);\n    cout << \"Subarray with maximum sum: \";\n    for (int num : subarray) cout << num << \" \";\n    cout << endl;\n\n    return 0;\n}",
+      "language": "cpp",
+      "timestamp": 1758984325.2952535,
+      "question_id": 4,
+      "hints_used_so_far": 0
+    }
+  ],
+  "questions_data": [
+    {
+      "question": "Given an array of integers, write a function to find the maximum sum of a subarray within the given array. For example, given the array [-2, 1, -3, 4, -1, 2, 1, -5, 4], the maximum sum of a subarray is 6, which can be achieved by summing the subarray [4, -1, 2, 1].",
+      "difficulty": "easy",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a dynamic programming approach to keep track of the maximum sum of subarrays ending at each position",
+        "Consider using Kadane's algorithm, which is an efficient solution for this problem",
+        "Make sure to handle edge cases, such as an empty array or an array with all negative numbers"
+      ],
+      "test_cases": [
+        {
+          "input": "[-2, 1, -3, 4, -1, 2, 1, -5, 4]",
+          "output": 6,
+          "explanation": "Maximum sum of subarray [4, -1, 2, 1]"
+        },
+        {
+          "input": "[1, 2, 3, 4, 5]",
+          "output": 15,
+          "explanation": "Maximum sum of subarray [1, 2, 3, 4, 5]"
+        },
+        {
+          "input": "[-1, -2, -3, -4, -5]",
+          "output": -1,
+          "explanation": "Maximum sum of subarray [-1]"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Efficiency and scalability of the solution"
+      ],
+      "id": 1
+    },
+    {
+      "question": "Given an array of integers, find the first duplicate in the array, i.e., the first element that appears more than once in the array. If no duplicate exists, return -1. For example, given the array [2, 1, 3, 5, 3, 2], the first duplicate is 3, and given the array [1, 2, 3, 4, 5], the output should be -1.",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a hash set to store the elements we have seen so far",
+        "Iterate through the array and for each element, check if it exists in the hash set",
+        "If an element exists in the hash set, it is the first duplicate, so return it"
+      ],
+      "test_cases": [
+        {
+          "input": "[2, 1, 3, 5, 3, 2]",
+          "output": "3",
+          "explanation": "3 is the first duplicate in the array"
+        },
+        {
+          "input": "[1, 2, 3, 4, 5]",
+          "output": "-1",
+          "explanation": "No duplicate exists in the array"
+        },
+        {
+          "input": "[1, 1, 2, 3, 4, 5]",
+          "output": "1",
+          "explanation": "1 is the first duplicate in the array"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality"
+      ],
+      "id": 2
+    },
+    {
+      "question": "Given an array of integers, write a function to find the first duplicate in the array. A duplicate is an element that appears more than once in the array. If no duplicates are found, return -1. For example, given the array [2, 1, 3, 5, 3, 2], the function should return 3 because it is the first duplicate. Given the array [1, 2, 3, 4, 5], the function should return -1 because there are no duplicates.",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a dictionary to keep track of the elements you have seen so far",
+        "Iterate over the array and check if each element is already in the dictionary",
+        "If an element is already in the dictionary, it is a duplicate and you should return it"
+      ],
+      "test_cases": [
+        {
+          "input": "[2, 1, 3, 5, 3, 2]",
+          "output": "3",
+          "explanation": "The first duplicate in the array is 3"
+        },
+        {
+          "input": "[1, 2, 3, 4, 5]",
+          "output": "-1",
+          "explanation": "There are no duplicates in the array"
+        },
+        {
+          "input": "[1, 1, 2, 2, 3, 3]",
+          "output": "1",
+          "explanation": "The first duplicate in the array is 1"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Time complexity and efficiency of the solution"
+      ],
+      "id": 3
+    },
+    {
+      "question": "Given a 2D array of integers, find the maximum sum of a subarray within a submatrix of size k x k, where k is a given integer. The subarray can be of any size and can start and end at any position within the submatrix. Provide a function that takes the 2D array and the integer k as input and returns the maximum sum of a subarray within a submatrix of size k x k.",
+      "difficulty": "hard",
+      "topics": [
+        "Arrays"
+      ],
+      "hints": [
+        "Use a sliding window approach to generate all possible submatrices of size k x k",
+        "For each submatrix, use Kadane's algorithm to find the maximum sum of a subarray",
+        "Keep track of the maximum sum found across all submatrices"
+      ],
+      "test_cases": [
+        {
+          "input": {
+            "array": [
+              [
+                1,
+                2,
+                3
+              ],
+              [
+                4,
+                5,
+                6
+              ],
+              [
+                7,
+                8,
+                9
+              ]
+            ],
+            "k": 2
+          },
+          "output": 18,
+          "explanation": "The maximum sum of a subarray within a submatrix of size 2 x 2 is 5 + 6 + 8 + 9 = 28, but the subarray 5 + 6 is the maximum sum within the submatrix [[4, 5], [7, 8]] and [[5, 6], [8, 9]], which is 11. However, the subarray 6 + 8 + 9 is not within a 2x2 submatrix, but 5 + 6 is. The subarray 4 + 5 + 7 + 8 is also within a 2x2 submatrix and has a sum of 24, but the maximum sum of a subarray within this submatrix is 5 + 7 + 8 = 20, which is less than 5 + 6 + 7 = 18."
+        },
+        {
+          "input": {
+            "array": [
+              [
+                -1,
+                -2,
+                -3
+              ],
+              [
+                -4,
+                -5,
+                -6
+              ],
+              [
+                -7,
+                -8,
+                -9
+              ]
+            ],
+            "k": 3
+          },
+          "output": -1,
+          "explanation": "The maximum sum of a subarray within the 3 x 3 submatrix is -1, which is the maximum sum of the subarray [-1]."
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Efficiency of the solution in terms of time and space complexity"
+      ],
+      "id": 4
+    }
+  ],
+  "final_evaluation": {
+    "score": 40,
+    "feedback": "The candidate's code does not address the problem correctly, it only finds the maximum sum of a subarray within a 1D array, not a 2D array or submatrix.",
+    "correctness": "The code does not solve the given problem, it lacks the logic to handle 2D arrays and submatrices.",
+    "approach_quality": "The approach is incomplete and does not consider the submatrix aspect of the problem.",
+    "code_quality": "The code quality is good in terms of syntax and readability, but it does not apply to the given problem.",
+    "areas_for_improvement": [
+      "Handling 2D arrays and submatrices",
+      "Implementing the correct logic to find the maximum sum of a subarray within a submatrix"
+    ]
+  },
+  "interview_ended_manually": true
+}
