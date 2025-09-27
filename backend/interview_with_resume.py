@@ -34,7 +34,20 @@ def read_resume(resume_path):
 
 # --- Load env ---
 load_dotenv()
-client = Groq(api_key=os.getenv("GROQ_API_KEY"))
+
+# Initialize Groq client with error handling
+api_key = os.getenv("GROQ_API_KEY")
+if not api_key:
+    print("❌ GROQ_API_KEY not found in environment variables for interview_with_resume.py")
+    client = None
+else:
+    try:
+        client = Groq(api_key=api_key)
+        print("✅ Groq client initialized successfully in interview_with_resume.py")
+    except Exception as e:
+        print(f"❌ Failed to initialize Groq client in interview_with_resume.py: {e}")
+        client = None
+
 conversation = []
 # --- Prompt for LLM ---
 INTERVIEWER_PROMPT = ""

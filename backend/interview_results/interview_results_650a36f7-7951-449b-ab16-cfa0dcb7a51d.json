@@ -1,0 +1,212 @@
+{
+  "session_id": "650a36f7-7951-449b-ab16-cfa0dcb7a51d",
+  "topics": [
+    "Arrays",
+    "Strings"
+  ],
+  "total_questions": 4,
+  "completed_questions": 3,
+  "average_score": 87.5,
+  "individual_scores": [
+    85,
+    90
+  ],
+  "total_time": 92.48839116096497,
+  "voice_responses": [],
+  "code_submissions": [
+    {
+      "code": "def longest_string(strings):\n    if not strings:\n        return None  # Handle empty array\n    \n    longest = strings[0]\n    for s in strings[1:]:\n        if len(s) > len(longest):\n            longest = s\n    return longest\n\n# Example usage:\narr = [\"apple\", \"banana\", \"pear\", \"strawberry\", \"kiwi\"]\nprint(longest_string(arr))  # Output: \"strawberry\"\n",
+      "language": "python",
+      "timestamp": 1758994683.680758,
+      "question_id": 1,
+      "hints_used_so_far": 0
+    },
+    {
+      "code": "def common_strings(arr1, arr2):\n    # Convert second array to a set for fast lookup\n    set2 = set(arr2)\n    # Collect elements from arr1 that exist in arr2\n    result = [s for s in arr1 if s in set2]\n    return result\n\n# Example usage:\narr1 = ['apple', 'banana', 'cherry']\narr2 = ['banana', 'cherry', 'date']\nprint(common_strings(arr1, arr2))  # Output: ['banana', 'cherry']\n\narr1 = ['hello', 'world']\narr2 = ['foo', 'bar']\nprint(common_strings(arr1, arr2))  # Output: []\n",
+      "language": "python",
+      "timestamp": 1758994704.29919,
+      "question_id": 2,
+      "hints_used_so_far": 1
+    }
+  ],
+  "questions_data": [
+    {
+      "question": "Given an array of strings, write a function that returns the longest string in the array. If there are multiple strings with the same maximum length, return the first one encountered.",
+      "difficulty": "easy",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Initialize the longest string with the first string in the array",
+        "Iterate through the array and compare the length of each string with the current longest string",
+        "Update the longest string if a longer string is found"
+      ],
+      "test_cases": [
+        {
+          "input": [
+            "apple",
+            "banana",
+            "cherry"
+          ],
+          "output": "banana",
+          "explanation": "banana is the longest string in the array"
+        },
+        {
+          "input": [
+            "a",
+            "bb",
+            "ccc"
+          ],
+          "output": "ccc",
+          "explanation": "ccc is the longest string in the array"
+        },
+        {
+          "input": [
+            "hello",
+            "world",
+            "hello"
+          ],
+          "output": "hello",
+          "explanation": "hello is the first longest string encountered in the array"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality"
+      ],
+      "id": 1
+    },
+    {
+      "question": "Given two arrays of strings, find the common strings that appear in both arrays and return them in a new array, preserving the original order from the first array. For example, if the first array is ['apple', 'banana', 'cherry'] and the second array is ['banana', 'cherry', 'date'], the output should be ['banana', 'cherry']. If the first array is ['hello', 'world'] and the second array is ['foo', 'bar'], the output should be an empty array.",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Use a Set data structure to store unique strings from the second array for efficient lookups",
+        "Iterate through the first array and check if each string exists in the Set of strings from the second array",
+        "Use an array to store the common strings and return it as the result"
+      ],
+      "test_cases": [
+        {
+          "input": "[['apple', 'banana', 'cherry'], ['banana', 'cherry', 'date']]",
+          "output": "['banana', 'cherry']",
+          "explanation": "Common strings 'banana' and 'cherry' appear in both arrays"
+        },
+        {
+          "input": "[['hello', 'world'], ['foo', 'bar']]",
+          "output": "[]",
+          "explanation": "No common strings between the two arrays"
+        },
+        {
+          "input": "[['a', 'b', 'c'], ['c', 'b', 'a']]",
+          "output": "['a', 'b', 'c']",
+          "explanation": "All strings in the first array appear in the second array, order preserved"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Efficiency of the solution in terms of time and space complexity"
+      ],
+      "id": 2
+    },
+    {
+      "question": "Given an array of strings, write a function that returns the longest common prefix among all strings in the array. If there is no common prefix, return an empty string. For example, given the array ['hello', 'hello world', 'hello dolly'], the function should return 'hello'. Given the array ['apple', 'banana', 'cherry'], the function should return an empty string.",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Compare characters at the same position in each string",
+        "Use a loop to iterate over the characters in the strings",
+        "Use a conditional statement to check if the characters match"
+      ],
+      "test_cases": [
+        {
+          "input": [
+            "hello",
+            "hello world",
+            "hello dolly"
+          ],
+          "output": "hello",
+          "explanation": "The longest common prefix among all strings is 'hello'"
+        },
+        {
+          "input": [
+            "apple",
+            "banana",
+            "cherry"
+          ],
+          "output": "",
+          "explanation": "There is no common prefix among all strings"
+        },
+        {
+          "input": [
+            "abc",
+            "abcde",
+            "abcdef"
+          ],
+          "output": "abc",
+          "explanation": "The longest common prefix among all strings is 'abc'"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Efficiency and scalability of the solution"
+      ],
+      "id": 3
+    },
+    {
+      "question": "Given two arrays of strings, find the longest common subsequence of strings where the order of strings matters. For example, if we have two arrays ['abc', 'def', 'ghi'] and ['abc', 'jkl', 'def', 'ghi'], the longest common subsequence would be ['abc', 'def', 'ghi']. Write a function that takes two arrays of strings as input and returns the longest common subsequence.",
+      "difficulty": "hard",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Use dynamic programming to solve this problem",
+        "Create a 2D array to store the lengths of common subsequences",
+        "Backtrack through the 2D array to construct the longest common subsequence"
+      ],
+      "test_cases": [
+        {
+          "input": "[['abc', 'def', 'ghi'], ['abc', 'jkl', 'def', 'ghi']]",
+          "output": "[['abc', 'def', 'ghi']]",
+          "explanation": "Longest common subsequence with order"
+        },
+        {
+          "input": "[['a', 'b', 'c'], ['a', 'b', 'd']]",
+          "output": "[['a', 'b']]",
+          "explanation": "Longest common subsequence with partial match"
+        },
+        {
+          "input": "[[], ['a', 'b', 'c']]",
+          "output": "[]",
+          "explanation": "Empty array as input"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Time and space complexity analysis"
+      ],
+      "id": 4
+    }
+  ],
+  "final_evaluation": {
+    "score": 90,
+    "feedback": "The candidate provided a correct and efficient solution to the problem",
+    "correctness": "The code correctly identifies common strings between two arrays while preserving the original order",
+    "approach_quality": "The candidate used a set for fast lookup, which is a good approach for this problem",
+    "code_quality": "The code is well-structured, readable, and concise",
+    "areas_for_improvement": [
+      "Error handling for edge cases, such as empty input arrays or non-string elements"
+    ]
+  },
+  "interview_ended_manually": true
+}

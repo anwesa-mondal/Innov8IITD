@@ -20,6 +20,9 @@ from interview import transcript_is_valid, transcribe, interviewer_reply, INTERV
 from interview_with_resume import read_resume
 from groq import Groq
 
+# Import database operations
+from database import db
+
 # Initialize Groq client for LLM-based questions
 api_key = os.getenv("GROQ_API_KEY")
 print(f"🔑 API Key status: {'✅ Found' if api_key else '❌ Missing'}")
@@ -230,6 +233,7 @@ class TechnicalSession:
         self.current_question_index = 0
         self.session_id = str(uuid.uuid4())
         self.start_time = time.time()
+        self.end_time = None
         self.question_start_time = time.time()
         self.hints_used = 0
         self.scores = []
@@ -238,6 +242,7 @@ class TechnicalSession:
         self.code_submissions = []
         self.final_evaluation = None  # Store detailed LLM evaluation
         self.question_submitted = False  # Track if current question was already submitted
+        self.interview_id = None  # Will be set when creating database record
         
         print(f"🔧 Client status: {'✅ Available' if client else '❌ Not available'}")
         
@@ -269,6 +274,136 @@ class TechnicalSession:
                     print(f"🔄 Added fallback question {i+1}")
         
         print(f"🎯 Session initialization complete. Generated {len(self.questions)} questions")
+        
+        # Initialize database record asynchronously
+        asyncio.create_task(self._initialize_database_record())
+    
+    async def _initialize_database_record(self):
+        """Initialize the database record for this interview session"""
+        try:
+            session_data = {
+                "session_id": self.session_id,
+                "interview_type": "technical",
+                "topics": self.topics,
+                "start_time": self.start_time,
+                "total_questions": len(self.questions)
+            }
+            
+            self.interview_id = await db.create_interview_session(session_data)
+            if self.interview_id:
+                print(f"✅ Database record created with interview_id: {self.interview_id}")
+            else:
+                print("⚠️ Failed to create database record")
+        except Exception as e:
+            print(f"❌ Error initializing database record: {e}")
+    
+    async def update_progress_in_db(self):
+        """Update interview progress in database"""
+        try:
+            progress_data = {
+                "current_question_index": self.current_question_index,
+                "completed_questions": len([s for s in self.scores if s is not None])
+            }
+            await db.update_interview_progress(self.session_id, progress_data)
+        except Exception as e:
+            print(f"❌ Error updating progress in database: {e}")
+    
+    async def store_question_response_in_db(self, question_index: int, user_response: str, score: int, feedback: str):
+        """Store individual question response in database"""
+        try:
+            # Convert internal 0-based question_index to 1-based for storage
+            db_question_index = int(question_index) + 1
+            if question_index < len(self.questions):
+                question = self.questions[question_index]
+
+                question_data = {
+                    "question": question.get("question"),
+                    "user_response": user_response,
+                    "score": score,
+                    "feedback": feedback,
+                    "time_taken": int(time.time() - self.question_start_time),
+                    "hints_used": self.hints_used,
+                    "difficulty": question.get("difficulty", "medium")
+                }
+
+                await db.store_question_response(self.session_id, db_question_index, question_data)
+        except Exception as e:
+            print(f"❌ Error storing question response in database: {e}")
+    
+    async def complete_interview_in_db(self, final_results: Dict):
+        """Mark interview as completed in database"""
+        try:
+            self.end_time = time.time()
+
+            # Normalize timestamps to ISO strings for DB storage
+            try:
+                iso_end_time = datetime.fromtimestamp(self.end_time).isoformat()
+            except Exception:
+                iso_end_time = None
+            try:
+                iso_start_time = datetime.fromtimestamp(self.start_time).isoformat() if self.start_time else None
+            except Exception:
+                iso_start_time = None
+
+            # Ensure individual scores are numbers
+            normalized_scores = [float(s) if isinstance(s, (int, float)) else 0 for s in self.scores]
+
+            # If this is a manual end, force completion_method
+            completion_method = final_results.get("completion_status") or final_results.get("completion_method")
+            if completion_method != "manually_ended" and final_results.get("interview_ended_manually"):
+                completion_method = "manually_ended"
+
+            results_data = {
+                "end_time": iso_end_time,
+                "start_time": iso_start_time,
+                "duration": int(self.end_time - self.start_time) if self.start_time else 0,
+                "total_time": int(self.end_time - self.start_time) if self.start_time else 0,
+                "completed_questions": len([s for s in self.scores if s is not None]),
+                "average_score": float(self.get_final_score()),
+                "individual_scores": normalized_scores if normalized_scores else [float(s) for s in self.scores],
+                "final_results": final_results,
+                "completion_method": completion_method or "automatic",
+                **final_results  # Include all other result data
+            }
+            print(f"[DB DEBUG] Writing interview completion: {json.dumps(results_data, default=str)[:500]}")
+
+            print(f"📊 Attempting to complete interview in database:")
+            print(f"   Session ID: {self.session_id}")
+            print(f"   End Time: {results_data.get('end_time')}")
+            print(f"   Duration: {results_data.get('total_time')} seconds")
+            print(f"   Completed Questions: {results_data.get('completed_questions')}")
+            print(f"   Average Score: {results_data.get('average_score')}")
+
+            # First ensure the session exists in the database
+            if not self.interview_id:
+                print("🔄 Session not found in database, creating it first...")
+                session_data = {
+                    "session_id": self.session_id,
+                    "interview_type": "technical",
+                    "topics": self.topics,
+                    "start_time": self.start_time,
+                    "total_questions": len(self.questions)
+                }
+                self.interview_id = await db.create_interview_session(session_data)
+                if not self.interview_id:
+                    print("❌ Failed to create session record, cannot complete interview")
+                    return False
+                print(f"✅ Session record created: {self.interview_id}")
+
+            success = await db.complete_interview(self.session_id, results_data)
+
+            if success:
+                print(f"✅ Interview completion successful in database")
+                return True
+            else:
+                print(f"❌ Interview completion failed in database")
+                return False
+
+        except Exception as e:
+            print(f"❌ Error completing interview in database: {e}")
+            import traceback
+            traceback.print_exc()
+            return False
     
     def get_current_question(self):
         if self.current_question_index < len(self.questions):
@@ -281,6 +416,10 @@ class TechnicalSession:
         self.hints_used = 0
         self.approach_discussed = False
         self.question_submitted = False  # Reset for new question
+        
+        # Update progress in database
+        asyncio.create_task(self.update_progress_in_db())
+        
         return self.get_current_question()
     
     def add_score(self, score: int):
@@ -340,86 +479,144 @@ Technical interviews include code evaluation and real-time hints.
 # -----------------------------
 @app.get("/")
 def root():
-	return {"status": "ok", "message": "Interview server running"}
+    return {"status": "ok", "message": "Interview server running"}
 
 
 @app.get("/topics")
 def list_topics():
-	return {"topics": TOPIC_OPTIONS}
+    return {"topics": TOPIC_OPTIONS}
 
 
 @app.post("/upload_resume")
 async def upload_resume(file: UploadFile = File(...)):
-	if file.content_type not in ("application/pdf", "application/octet-stream"):
-		raise HTTPException(status_code=400, detail="Only PDF resumes are supported")
+    if file.content_type not in ("application/pdf", "application/octet-stream"):
+        raise HTTPException(status_code=400, detail="Only PDF resumes are supported")
 
-	content = await file.read()
-	# Persist to a temp file and use the existing read_resume function
-	try:
-		with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
-			tmp.write(content)
-			tmp_path = tmp.name
-		text = read_resume(tmp_path) or ""
-		if not text:
-			raise ValueError("Empty text extracted from resume")
-		# No easy way to get page count from read_resume; return -1 to indicate unknown
-		page_count = -1
-	except Exception as e:
-		raise HTTPException(status_code=400, detail=f"Failed to process uploaded PDF: {e}")
-	finally:
-		try:
-			os.unlink(tmp_path)
-		except Exception:
-			pass
+    content = await file.read()
+    # Persist to a temp file and use the existing read_resume function
+    try:
+        with tempfile.NamedTemporaryFile(delete=False, suffix=".pdf") as tmp:
+            tmp.write(content)
+            tmp_path = tmp.name
+        text = read_resume(tmp_path) or ""
+        if not text:
+            raise ValueError("Empty text extracted from resume")
+        # No easy way to get page count from read_resume; return -1 to indicate unknown
+        page_count = -1
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Failed to process uploaded PDF: {e}")
+    finally:
+        try:
+            os.unlink(tmp_path)
+        except Exception:
+            pass
 
-	resume_id = str(uuid.uuid4())
-	resume_store[resume_id] = text
-	return {"resume_id": resume_id, "pages": page_count}
+    resume_id = str(uuid.uuid4())
+    resume_store[resume_id] = text
+    return {"resume_id": resume_id, "pages": page_count}
 
 
 @app.post("/save_interview_results")
 async def save_interview_results(data: dict):
-	"""Save interview results as JSON file and return download URL"""
-	try:
-		interview_id = str(uuid.uuid4())
-		filename = f"interview_results_{interview_id}.json"
-		
-		# Create results directory if it doesn't exist
-		results_dir = "interview_results"
-		os.makedirs(results_dir, exist_ok=True)
-		
-		# Save the interview data as JSON
-		filepath = os.path.join(results_dir, filename)
-		with open(filepath, 'w', encoding='utf-8') as f:
-			json.dump(data, f, indent=2, ensure_ascii=False)
-		
-		return {
-			"status": "success",
-			"interview_id": interview_id,
-			"filename": filename,
-			"download_url": f"/download_results/{interview_id}"
-		}
-	except Exception as e:
-		raise HTTPException(status_code=500, detail=f"Failed to save results: {str(e)}")
+    """Save interview results as JSON file and return download URL"""
+    try:
+        interview_id = str(uuid.uuid4())
+        filename = f"interview_results_{interview_id}.json"
+        
+        # Create results directory if it doesn't exist
+        results_dir = "interview_results"
+        os.makedirs(results_dir, exist_ok=True)
+        
+        # Save the interview data as JSON
+        filepath = os.path.join(results_dir, filename)
+        with open(filepath, 'w', encoding='utf-8') as f:
+            json.dump(data, f, indent=2, ensure_ascii=False)
+        
+        return {
+            "status": "success",
+            "interview_id": interview_id,
+            "filename": filename,
+            "download_url": f"/download_results/{interview_id}"
+        }
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to save results: {str(e)}")
 
 
 @app.get("/download_results/{interview_id}")
 async def download_results(interview_id: str):
-	"""Download interview results JSON file"""
-	try:
-		filename = f"interview_results_{interview_id}.json"
-		filepath = os.path.join("interview_results", filename)
-		
-		if not os.path.exists(filepath):
-			raise HTTPException(status_code=404, detail="Interview results not found")
-		
-		return FileResponse(
-			filepath,
-			media_type='application/json',
-			filename=filename
-		)
-	except Exception as e:
-		raise HTTPException(status_code=500, detail=f"Failed to download results: {str(e)}")
+    """Download interview results JSON file"""
+    try:
+        filename = f"interview_results_{interview_id}.json"
+        filepath = os.path.join("interview_results", filename)
+        
+        if not os.path.exists(filepath):
+            raise HTTPException(status_code=404, detail="Interview results not found")
+        
+        return FileResponse(
+            filepath,
+            media_type='application/json',
+            filename=filename
+        )
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to download results: {str(e)}")
+
+
+@app.get("/api/interview-results/{session_id}")
+async def get_interview_results(session_id: str):
+    """Get interview results data for a session from database"""
+    try:
+        # First try to get from database
+        results = await db.get_interview_results(session_id)
+        if results:
+            return results
+        
+        # Fallback to file-based results if not in database
+        filename = f"interview_results_{session_id}.json"
+        filepath = os.path.join("interview_results", filename)
+        
+        if os.path.exists(filepath):
+            with open(filepath, 'r', encoding='utf-8') as f:
+                data = json.load(f)
+                return data
+        
+        raise HTTPException(status_code=404, detail="Interview results not found")
+        
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get interview results: {str(e)}")
+
+
+@app.get("/api/interviews")
+async def get_all_interviews(limit: int = 50):
+    """Get all interview records from database"""
+    try:
+        interviews = await db.get_all_interviews(limit)
+        return {"interviews": interviews, "count": len(interviews)}
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get interviews: {str(e)}")
+
+
+@app.get("/api/interview-details/{session_id}")
+async def get_interview_details(session_id: str):
+    """Get detailed interview data including question responses"""
+    try:
+        # Get main interview data
+        interview_data = await db.get_interview_results(session_id)
+        if not interview_data:
+            raise HTTPException(status_code=404, detail="Interview not found")
+        
+        # Get question responses
+        question_responses = await db.get_question_responses(session_id)
+        
+        return {
+            "interview": interview_data,
+            "questions": question_responses
+        }
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Failed to get interview details: {str(e)}")
 
 
 # -----------------------------
@@ -427,67 +624,67 @@ async def download_results(interview_id: str):
 # -----------------------------
 @app.websocket("/ws")
 async def ws_endpoint(ws: WebSocket):
-	await ws.accept()
+    await ws.accept()
 
-	session = {
-		"prompt": None,
-		"conversation": []
-	}
+    session = {
+        "prompt": None,
+        "conversation": []
+    }
 
-	try:
-		while True:
-			data = await ws.receive_text()
-			try:
-				msg = json.loads(data)
-			except Exception:
-				await ws.send_text(json.dumps({
-					"type": "error", "error": "Invalid JSON message"
-				}))
-				continue
+    try:
+        while True:
+            data = await ws.receive_text()
+            try:
+                msg = json.loads(data)
+            except Exception:
+                await ws.send_text(json.dumps({
+                    "type": "error", "error": "Invalid JSON message"
+                }))
+                continue
 
-			mtype = msg.get("type")
+            mtype = msg.get("type")
 
-			if mtype == "init":
-				mode = msg.get("mode")  # "topics" | "resume"
-				if mode == "topics":
-					topics = msg.get("topics") or []
-					if not isinstance(topics, list) or not topics:
-						await ws.send_text(json.dumps({
-							"type": "error", "error": "Provide non-empty 'topics' list"
-						}))
-						continue
-					# Store session info
-					session["mode"] = mode
-					session["topics"] = topics
-					# Build and set prompt via existing module
-					prompt = build_interviewer_prompt(topics)
-					# Append jargon correction instruction as in interview.py
-					prompt += (
-						"\nIf the candidate uses a technical term or jargon that is misspelled or not recognized "
-						"(for example, 'kosarachi' instead of 'kosaraju'), try to infer the intended word and "
-						"suggest the closest possible correct term in your feedback."
-					)
-					import interview
-					interview.INTERVIEWER_PROMPT = prompt
-					session["prompt"] = prompt
-					await ws.send_text(json.dumps({
-						"type": "ready",
-						"message": "Topic-based interview initialized",
-						"next_question": "Let's begin. Can you introduce yourself?"
-					}))
-				elif mode == "resume":
-					resume_id = msg.get("resume_id")
-					if not resume_id or resume_id not in resume_store:
-						await ws.send_text(json.dumps({
-							"type": "error", "error": "Invalid or missing resume_id"
-						}))
-						continue
-					# Store session info
-					session["mode"] = mode
-					session["resume_id"] = resume_id
-					resume_text = resume_store[resume_id]
-					# Resume-based prompt. Avoid f-string so JSON braces remain literal.
-					prompt = """
+            if mtype == "init":
+                mode = msg.get("mode")  # "topics" | "resume"
+                if mode == "topics":
+                    topics = msg.get("topics") or []
+                    if not isinstance(topics, list) or not topics:
+                        await ws.send_text(json.dumps({
+                            "type": "error", "error": "Provide non-empty 'topics' list"
+                        }))
+                        continue
+                    # Store session info
+                    session["mode"] = mode
+                    session["topics"] = topics
+                    # Build and set prompt via existing module
+                    prompt = build_interviewer_prompt(topics)
+                    # Append jargon correction instruction as in interview.py
+                    prompt += (
+                        "\nIf the candidate uses a technical term or jargon that is misspelled or not recognized "
+                        "(for example, 'kosarachi' instead of 'kosaraju'), try to infer the intended word and "
+                        "suggest the closest possible correct term in your feedback."
+                    )
+                    import interview
+                    interview.INTERVIEWER_PROMPT = prompt
+                    session["prompt"] = prompt
+                    await ws.send_text(json.dumps({
+                        "type": "ready",
+                        "message": "Topic-based interview initialized",
+                        "next_question": "Let's begin. Can you introduce yourself?"
+                    }))
+                elif mode == "resume":
+                    resume_id = msg.get("resume_id")
+                    if not resume_id or resume_id not in resume_store:
+                        await ws.send_text(json.dumps({
+                            "type": "error", "error": "Invalid or missing resume_id"
+                        }))
+                        continue
+                    # Store session info
+                    session["mode"] = mode
+                    session["resume_id"] = resume_id
+                    resume_text = resume_store[resume_id]
+                    # Resume-based prompt. Avoid f-string so JSON braces remain literal.
+                    prompt = """
 You are **CodeSage**, an AI technical interviewer.
 You are conducting a live mock job interview with the candidate, using their resume as the primary source for questions.
 
@@ -510,25 +707,25 @@ You are conducting a live mock job interview with the candidate, using their res
 
 ### Tasks:
 1. For general questions:
-	- Evaluate the candidate's response briefly (clarity, correctness, confidence).
-	- If the answer is incomplete, politely nudge for more detail.
-	- Ask the next resume-based question.
+    - Evaluate the candidate's response briefly (clarity, correctness, confidence).
+    - If the answer is incomplete, politely nudge for more detail.
+    - Ask the next resume-based question.
 
 2. For technical or project questions:
-	- Compare the candidate's explanation with what's described in the resume.
-	- Judge correctness, depth, and relevance.
-	- Suggest improvements or ask for more details if needed.
-	- If candidate requests a hint, give only a small clue.
+    - Compare the candidate's explanation with what's described in the resume.
+    - Judge correctness, depth, and relevance.
+    - Suggest improvements or ask for more details if needed.
+    - If candidate requests a hint, give only a small clue.
 
 3. Jargon or Misspelling:
-	- If the candidate uses a technical term or jargon that is misspelled or not recognized (e.g., "kosarachi" instead of "kosaraju"), try to infer the intended word and suggest the closest possible correct term in your feedback.
+    - If the candidate uses a technical term or jargon that is misspelled or not recognized (e.g., "kosarachi" instead of "kosaraju"), try to infer the intended word and suggest the closest possible correct term in your feedback.
 
 4. Final feedback (at end of interview):
-	- Summarize overall performance:
-	  1. Strengths demonstrated
-	  2. Areas for improvement
-	  3. Overall confidence level
-	  4. Recommendation (hire / no hire / needs more practice)
+    - Summarize overall performance:
+      1. Strengths demonstrated
+      2. Areas for improvement
+      3. Overall confidence level
+      4. Recommendation (hire / no hire / needs more practice)
 
 ### Response Format:
 Always reply in JSON:
@@ -541,160 +738,156 @@ Always reply in JSON:
 
 Resume:
 """ + resume_text
-					import interview
-					interview.INTERVIEWER_PROMPT = prompt
-					session["prompt"] = prompt
-					await ws.send_text(json.dumps({
-						"type": "ready",
-						"message": "Resume-based interview initialized",
-						"next_question": "Thanks for sharing your resume. Could you give a brief overview of your background?"
-					}))
-				else:
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "Unknown mode. Use 'topics' or 'resume'"
-					}))
+                    import interview
+                    interview.INTERVIEWER_PROMPT = prompt
+                    session["prompt"] = prompt
+                    await ws.send_text(json.dumps({
+                        "type": "ready",
+                        "message": "Resume-based interview initialized",
+                        "next_question": "Thanks for sharing your resume. Could you give a brief overview of your background?"
+                    }))
+                else:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "Unknown mode. Use 'topics' or 'resume'"
+                    }))
 
-			elif mtype == "answer":
-				if not session.get("prompt"):
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "Session not initialized. Send 'init' first."
-					}))
-					continue
-				candidate = msg.get("text", "").strip()
-				if not candidate:
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "Empty answer text"
-					}))
-					continue
+            elif mtype == "answer":
+                if not session.get("prompt"):
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "Session not initialized. Send 'init' first."
+                    }))
+                    continue
+                candidate = msg.get("text", "").strip()
+                if not candidate:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "Empty answer text"
+                    }))
+                    continue
 
-				# Validate transcript
-				if not transcript_is_valid(candidate):
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "Invalid transcript. Please speak more clearly."
-					}))
-					continue
+                # Validate transcript
+                if not transcript_is_valid(candidate):
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "Invalid transcript. Please speak more clearly."
+                    }))
+                    continue
 
-				reply = interviewer_reply(candidate, session["conversation"])
-				session["conversation"].append({
-					"candidate": candidate,
-					**reply
-				})
-				await ws.send_text(json.dumps({"type": "assessment", **reply}))
+                reply = interviewer_reply(candidate, session["conversation"])
+                session["conversation"].append({
+                    "candidate": candidate,
+                    **reply
+                })
+                await ws.send_text(json.dumps({"type": "assessment", **reply}))
 
-			elif mtype == "code_submission":
-				if not session.get("prompt"):
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "Session not initialized. Send 'init' first."
-					}))
-					continue
-				code = msg.get("code", "").strip()
-				if not code:
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "Empty code submission"
-					}))
-					continue
+            elif mtype == "code_submission":
+                if not session.get("prompt"):
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "Session not initialized. Send 'init' first."
+                    }))
+                    continue
+                code = msg.get("code", "").strip()
+                if not code:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "Empty code submission"
+                    }))
+                    continue
 
-				# Add a delay to simulate code analysis time (3-5 seconds)
-				import asyncio
-				await asyncio.sleep(4)  # 4 second delay for code analysis
-				
-				# Process code submission like a regular answer
-				candidate_message = f"[Code Submission]\n{code}"
-				reply = interviewer_reply(candidate_message, session["conversation"])
-				session["conversation"].append({
-					"candidate": candidate_message,
-					**reply
-				})
-				await ws.send_text(json.dumps({"type": "assessment", **reply}))
+                # Process code submission like a regular answer
+                candidate_message = f"[Code Submission]\n{code}"
+                reply = interviewer_reply(candidate_message, session["conversation"])
+                session["conversation"].append({
+                    "candidate": candidate_message,
+                    **reply
+                })
+                await ws.send_text(json.dumps({"type": "assessment", **reply}))
 
-			elif mtype == "record_audio":
-				await ws.send_text(json.dumps({"type": "listening", "message": "Listening for speech..."}))
-				try:
-					filename = f"ws_ans_{len(session['conversation'])}.wav"
-					recorded_file, heard_speech = record_with_vad(filename)
-					if not heard_speech:
-						await ws.send_text(json.dumps({
-							"type": "no_speech",
-							"message": "No speech detected. Please speak louder or check your microphone."
-						}))
-						continue
-					candidate = transcribe(recorded_file)
-					try:
-						os.remove(recorded_file)
-					except Exception:
-						pass
-					if not transcript_is_valid(candidate):
-						await ws.send_text(json.dumps({
-							"type": "invalid_transcript",
-							"message": "Could not understand. Please repeat more clearly.",
-							"transcript": candidate
-						}))
-						continue
-					await ws.send_text(json.dumps({
-						"type": "transcribed",
-						"transcript": candidate
-					}))
-					reply = interviewer_reply(candidate, session["conversation"])
-					session["conversation"].append({
-						"candidate": candidate,
-						**reply
-					})
-					await ws.send_text(json.dumps({"type": "assessment", **reply}))
-				except Exception as e:
-					await ws.send_text(json.dumps({
-						"type": "error",
-						"error": f"Recording failed: {str(e)}"
-					}))
+            elif mtype == "record_audio":
+                await ws.send_text(json.dumps({"type": "listening", "message": "Listening for speech..."}))
+                try:
+                    filename = f"ws_ans_{len(session['conversation'])}.wav"
+                    recorded_file, heard_speech = record_with_vad(filename)
+                    if not heard_speech:
+                        await ws.send_text(json.dumps({
+                            "type": "no_speech",
+                            "message": "No speech detected. Please speak louder or check your microphone."
+                        }))
+                        continue
+                    candidate = transcribe(recorded_file)
+                    try:
+                        os.remove(recorded_file)
+                    except Exception:
+                        pass
+                    if not transcript_is_valid(candidate):
+                        await ws.send_text(json.dumps({
+                            "type": "invalid_transcript",
+                            "message": "Could not understand. Please repeat more clearly.",
+                            "transcript": candidate
+                        }))
+                        continue
+                    await ws.send_text(json.dumps({
+                        "type": "transcribed",
+                        "transcript": candidate
+                    }))
+                    reply = interviewer_reply(candidate, session["conversation"])
+                    session["conversation"].append({
+                        "candidate": candidate,
+                        **reply
+                    })
+                    await ws.send_text(json.dumps({"type": "assessment", **reply}))
+                except Exception as e:
+                    await ws.send_text(json.dumps({
+                        "type": "error",
+                        "error": f"Recording failed: {str(e)}"
+                    }))
 
-			elif mtype == "end":
-				# Save interview results before ending
-				try:
-					if session and "conversation" in session:
-						interview_data = {
-							"interview_id": str(uuid.uuid4()),
-							"timestamp": json.dumps(None, default=str),  # Will be handled by JSON encoder
-							"interview_type": session.get("mode", "unknown"),
-							"conversation": session["conversation"],
-							"resume_id": session.get("resume_id"),
-							"topics": session.get("topics", []),
-							"total_interactions": len(session["conversation"])
-						}
-						# Add current timestamp
-						import datetime
-						interview_data["timestamp"] = datetime.datetime.now().isoformat()
-						
-						# Save to file
-						interview_id = interview_data["interview_id"]
-						filename = f"interview_results_{interview_id}.json"
-						results_dir = "interview_results"
-						os.makedirs(results_dir, exist_ok=True)
-						filepath = os.path.join(results_dir, filename)
-						
-						with open(filepath, 'w', encoding='utf-8') as f:
-							json.dump(interview_data, f, indent=2, ensure_ascii=False)
-						
-						await ws.send_text(json.dumps({
-							"type": "ended",
-							"interview_id": interview_id,
-							"download_url": f"/download_results/{interview_id}"
-						}))
-					else:
-						await ws.send_text(json.dumps({"type": "ended"}))
-				except Exception as e:
-					await ws.send_text(json.dumps({
-						"type": "ended",
-						"error": f"Failed to save results: {str(e)}"
-					}))
-				await ws.close()
-				break
+            elif mtype == "end":
+                # Save interview results before ending
+                try:
+                    if session and "conversation" in session:
+                        interview_data = {
+                            "interview_id": str(uuid.uuid4()),
+                            "timestamp": json.dumps(None, default=str),  # Will be handled by JSON encoder
+                            "interview_type": session.get("mode", "unknown"),
+                            "conversation": session["conversation"],
+                            "resume_id": session.get("resume_id"),
+                            "topics": session.get("topics", []),
+                            "total_interactions": len(session["conversation"])
+                        }
+                        # Add current timestamp
+                        import datetime
+                        interview_data["timestamp"] = datetime.datetime.now().isoformat()
+                        
+                        # Save to file
+                        interview_id = interview_data["interview_id"]
+                        filename = f"interview_results_{interview_id}.json"
+                        results_dir = "interview_results"
+                        os.makedirs(results_dir, exist_ok=True)
+                        filepath = os.path.join(results_dir, filename)
+                        
+                        with open(filepath, 'w', encoding='utf-8') as f:
+                            json.dump(interview_data, f, indent=2, ensure_ascii=False)
+                        
+                        await ws.send_text(json.dumps({
+                            "type": "ended",
+                            "interview_id": interview_id,
+                            "download_url": f"/download_results/{interview_id}"
+                        }))
+                    else:
+                        await ws.send_text(json.dumps({"type": "ended"}))
+                except Exception as e:
+                    await ws.send_text(json.dumps({
+                        "type": "ended",
+                        "error": f"Failed to save results: {str(e)}"
+                    }))
+                await ws.close()
+                break
 
-			else:
-				await ws.send_text(json.dumps({
-					"type": "error", "error": f"Unknown message type: {mtype}"
-				}))
+            else:
+                await ws.send_text(json.dumps({
+                    "type": "error", "error": f"Unknown message type: {mtype}"
+                }))
 
-	except WebSocketDisconnect:
-		return
+    except WebSocketDisconnect:
+        return
 
 
 # -----------------------------
@@ -702,308 +895,405 @@ Resume:
 # -----------------------------
 @app.websocket("/ws/technical")
 async def technical_ws_endpoint(ws: WebSocket):
-	await ws.accept()
-	
-	session_id = None
-	session = None
-	
-	try:
-		while True:
-			data = await ws.receive_text()
-			try:
-				msg = json.loads(data)
-			except Exception:
-				await ws.send_text(json.dumps({
-					"type": "error", "error": "Invalid JSON message"
-				}))
-				continue
+    await ws.accept()
+    
+    session_id = None
+    session = None
+    
+    try:
+        while True:
+            data = await ws.receive_text()
+            try:
+                msg = json.loads(data)
+            except Exception:
+                await ws.send_text(json.dumps({
+                    "type": "error", "error": "Invalid JSON message"
+                }))
+                continue
 
-			mtype = msg.get("type")
+            mtype = msg.get("type")
 
-			if mtype == "init_technical":
-				topics = msg.get("topics", [])
-				if not topics:
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "No topics selected"
-					}))
-					continue
-				
-				# Create technical interview session
-				session = TechnicalSession(topics)
-				session_id = session.session_id
-				technical_sessions[session_id] = session
-				
-				# Send first question
-				current_question = session.get_current_question()
-				if current_question:
-					await ws.send_text(json.dumps({
-						"type": "question",
-						"next_question": current_question['question'],
-						"difficulty": current_question['difficulty'],
-						"topics": current_question['topics']
-					}))
-				else:
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "No questions available for selected topics"
-					}))
+            if mtype == "init_technical":
+                topics = msg.get("topics", [])
+                if not topics:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "No topics selected"
+                    }))
+                    continue
+                
+                # Create technical interview session
+                session = TechnicalSession(topics)
+                session_id = session.session_id
+                technical_sessions[session_id] = session
+                
+                # Send first question
+                current_question = session.get_current_question()
+                if current_question:
+                    await ws.send_text(json.dumps({
+                        "type": "question",
+                        "next_question": current_question['question'],
+                        "difficulty": current_question['difficulty'],
+                        "topics": current_question['topics']
+                    }))
+                else:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "No questions available for selected topics"
+                    }))
 
-			elif mtype == "submit_code":
-				if not session:
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "No active session"
-					}))
-					continue
-				
-				# Check if this question was already submitted
-				if session.question_submitted:
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "This question has already been submitted. Please wait for the next question."
-					}))
-					continue
-				
-				code = msg.get("code", "")
-				language = msg.get("language", "python")
-				time_spent = msg.get("time_spent", 0)
-				hints_used = msg.get("hints_used", 0)
-				
-				# Mark this question as submitted
-				session.question_submitted = True
-				
-				# Store code submission
-				session.add_code_submission(code, language)
-				
-				print(f"Evaluating submission for question {session.current_question_index + 1}")
-				
-				# Evaluate the code submission with LLM
-				score = await llm_evaluate_code_submission(session, code, language, time_spent, hints_used)
-				session.add_score(score)
-				
-				print(f"Question {session.current_question_index + 1} scored: {score}/100")
-				
-				# Send feedback to user
-				feedback_msg = f"Question {session.current_question_index + 1} completed! Score: {score}/100"
-				if session.final_evaluation:
-					feedback_msg += f"\n{session.final_evaluation.get('feedback', '')}"
-				
-				await ws.send_text(json.dumps({
-					"type": "code_feedback",
-					"code_feedback": feedback_msg,
-					"score": score,
-					"question_number": session.current_question_index + 1
-				}))
-				
-				# Check if interview is complete
-				if session.current_question_index >= len(session.questions) - 1:
-					# Interview complete
-					final_results = {
-						"session_id": session_id,
-						"topics": session.topics,
-						"total_questions": len(session.questions),
-						"completed_questions": len(session.questions),
-						"average_score": session.get_final_score(),
-						"individual_scores": session.scores,
-						"total_time": time.time() - session.start_time,
-						"voice_responses": session.voice_responses,
-						"code_submissions": session.code_submissions,
-						"questions_data": session.questions,
-						"final_evaluation": session.final_evaluation,
-						"interview_ended_manually": False
-					}
-					
-					# Save results to file
-					results_file = f"interview_results/interview_results_{session_id}.json"
-					os.makedirs("interview_results", exist_ok=True)
-					
-					with open(results_file, 'w') as f:
-						json.dump(final_results, f, indent=2, default=str)
-					
-					await ws.send_text(json.dumps({
-						"type": "interview_complete",
-						"final_feedback": f"Technical interview completed! Final score: {session.get_final_score():.1f}/100",
-						"results": final_results,
-						"download_url": f"/download_results/{session_id}"
-					}))
-				else:
-					# Move to next question
-					next_question_data = session.next_question()
-					if next_question_data:
-						await ws.send_text(json.dumps({
-							"type": "question_complete",
-							"score": score,
-							"next_question": next_question_data['question'],
-							"difficulty": next_question_data['difficulty'],
-							"topics": next_question_data['topics']
-						}))
+            elif mtype == "submit_code":
+                if not session:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "No active session"
+                    }))
+                    continue
+                
+                # Check if this question was already submitted
+                if session.question_submitted:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "This question has already been submitted. Please wait for the next question."
+                    }))
+                    continue
+                
+                # Immediately acknowledge submission and stop any ongoing speech
+                await ws.send_text(json.dumps({
+                    "type": "stop_speech",
+                    "message": "Code submitted. Processing..."
+                }))
+                
+                code = msg.get("code", "")
+                language = msg.get("language", "python")
+                time_spent = msg.get("time_spent", 0)
+                hints_used = msg.get("hints_used", 0)
+                
+                # Mark this question as submitted
+                session.question_submitted = True
+                
+                # Store code submission
+                session.add_code_submission(code, language)
+                
+                print(f"Evaluating submission for question {session.current_question_index + 1}")
+                
+                # Evaluate the code submission with LLM
+                score = await llm_evaluate_code_submission(session, code, language, time_spent, hints_used)
+                session.add_score(score)
+                
+                print(f"Question {session.current_question_index + 1} scored: {score}/100")
+                
+                # Send feedback to user
+                feedback_msg = f"Question {session.current_question_index + 1} completed! Score: {score}/100"
+                if session.final_evaluation:
+                    feedback_msg += f"\n{session.final_evaluation.get('feedback', '')}"
+                
+                # Store question response in database
+                await session.store_question_response_in_db(
+                    session.current_question_index, 
+                    msg.get("code", ""), 
+                    score, 
+                    feedback_msg
+                )
+                
+                await ws.send_text(json.dumps({
+                    "type": "code_feedback",
+                    "code_feedback": feedback_msg,
+                    "score": score,
+                    "question_number": session.current_question_index + 1
+                }))
+                
+                # Check if interview is complete
+                print(f"🔍 Checking if interview complete:")
+                print(f"   Current index: {session.current_question_index}")
+                print(f"   Total questions: {len(session.questions)}")
+                print(f"   Condition: {session.current_question_index} >= {len(session.questions) - 1} = {session.current_question_index >= len(session.questions) - 1}")
+                
+                if session.current_question_index >= len(session.questions) - 1:
+                    print("🎉 INTERVIEW SHOULD BE COMPLETE - Starting completion process")
+                    # Interview complete
+                    final_results = {
+                        "session_id": session_id,
+                        "topics": session.topics,
+                        "total_questions": len(session.questions),
+                        "completed_questions": session.current_question_index + 1,
+                        "average_score": session.get_final_score(),
+                        "individual_scores": session.scores,
+                        "total_time": time.time() - session.start_time,
+                        "voice_responses": session.voice_responses,
+                        "code_submissions": session.code_submissions,
+                        "questions_data": session.questions,
+                        "final_evaluation": session.final_evaluation,
+                        "interview_ended_manually": False
+                    }
+                    
+                    # Store completion in database
+                    await session.complete_interview_in_db(final_results)
+                    
+                    # Save results to file (backup)
+                    results_file = f"interview_results/interview_results_{session_id}.json"
+                    os.makedirs("interview_results", exist_ok=True)
+                    
+                    with open(results_file, 'w') as f:
+                        json.dump(final_results, f, indent=2, default=str)
+                    results_file = f"interview_results/interview_results_{session_id}.json"
+                    os.makedirs("interview_results", exist_ok=True)
+                    
+                    with open(results_file, 'w') as f:
+                        json.dump(final_results, f, indent=2, default=str)
+                    
+                    await ws.send_text(json.dumps({
+                        "type": "interview_complete",
+                        "final_feedback": f"Technical interview completed! Final score: {session.get_final_score():.1f}/100",
+                        "results": final_results,
+                        "download_url": f"/download_results/{session_id}"
+                    }))
+                else:
+                    # Move to next question
+                    print(f"Moving to next question. Current index: {session.current_question_index}, Total questions: {len(session.questions)}")
+                    next_question_data = session.next_question()
+                    print(f"Next question data available: {next_question_data is not None}")
+                    
+                    if next_question_data:
+                        print(f"Sending next question: {next_question_data.get('question', 'Unknown')[:50]}...")
+                        
+                        # Update database progress
+                        await session.update_progress_in_db()
+                        
+                        await ws.send_text(json.dumps({
+                            "type": "question_complete",
+                            "score": score,
+                            "question_number": session.current_question_index,  # New question number
+                            "next_question": next_question_data['question'],
+                            "difficulty": next_question_data['difficulty'],
+                            "topics": next_question_data['topics'],
+                            "total_questions": len(session.questions),
+                            "remaining_questions": len(session.questions) - session.current_question_index
+                        }))
+                        print(f"✅ Successfully sent next question {session.current_question_index + 1}/{len(session.questions)}")
+                    else:
+                        print("❌ No next question available - this shouldn't happen!")
+                        # This case should not happen with our logic, but handle it gracefully
+                        print(f"Debug: current_index={session.current_question_index}, total_questions={len(session.questions)}")
+                        
+                        # Force complete the interview
+                        final_results = {
+                            "session_id": session_id,
+                            "topics": session.topics,
+                            "total_questions": len(session.questions),
+                            "completed_questions": len(session.scores),
+                            "average_score": session.get_final_score(),
+                            "individual_scores": session.scores,
+                            "total_time": time.time() - session.start_time,
+                            "interview_ended_manually": False,
+                            "error": "No next question available"
+                        }
+                        
+                        await session.complete_interview_in_db(final_results)
+                        
+                        await ws.send_text(json.dumps({
+                            "type": "interview_complete",
+                            "final_feedback": f"Interview ended unexpectedly. Score: {session.get_final_score():.1f}/100",
+                            "results": final_results
+                        }))
 
-			elif mtype == "voice_approach":
-				if not session:
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "No active session"
-					}))
-					continue
-				
-				transcript = msg.get("transcript", "")
-				if transcript:
-					# Store voice response for approach discussion
-					session.add_voice_response(transcript, "approach")
-					session.approach_discussed = True
-					
-					# Analyze approach quality
-					approach_feedback = await analyze_approach_discussion(session, transcript)
-					
-					await ws.send_text(json.dumps({
-						"type": "approach_feedback",
-						"feedback": approach_feedback,
-						"approach_discussed": True
-					}))
+            elif mtype == "voice_approach":
+                if not session:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "No active session"
+                    }))
+                    continue
+                
+                transcript = msg.get("transcript", "")
+                if transcript:
+                    # Store voice response for approach discussion
+                    session.add_voice_response(transcript, "approach")
+                    session.approach_discussed = True
+                    
+                    # Analyze approach quality
+                    approach_feedback = await analyze_approach_discussion(session, transcript)
+                    
+                    await ws.send_text(json.dumps({
+                        "type": "approach_feedback",
+                        "feedback": approach_feedback,
+                        "approach_discussed": True
+                    }))
 
-			elif mtype == "record_audio":
-				if not session:
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "No active session"
-					}))
-					continue
-				
-				await ws.send_text(json.dumps({"type": "listening", "message": "Listening for your approach..."}))
-				try:
-					filename = f"technical_approach_{session.session_id}_{len(session.voice_responses)}.wav"
-					recorded_file, heard_speech = record_with_vad(filename)
-					
-					if not heard_speech:
-						await ws.send_text(json.dumps({
-							"type": "no_speech",
-							"message": "No speech detected. Please speak louder or describe your approach."
-						}))
-						continue
-					
-					transcript = transcribe(recorded_file)
-					try:
-						os.remove(recorded_file)
-					except Exception:
-						pass
-					
-					if not transcript_is_valid(transcript):
-						await ws.send_text(json.dumps({
-							"type": "invalid_transcript",
-							"message": "Could not understand. Please repeat your approach more clearly.",
-							"transcript": transcript
-						}))
-						continue
-					
-					# Store and analyze approach
-					session.add_voice_response(transcript, "approach")
-					session.approach_discussed = True
-					
-					approach_feedback = await analyze_approach_discussion(session, transcript)
-					
-					await ws.send_text(json.dumps({
-						"type": "approach_analyzed",
-						"transcript": transcript,
-						"feedback": approach_feedback,
-						"approach_discussed": True
-					}))
-					
-				except Exception as e:
-					await ws.send_text(json.dumps({
-						"type": "error",
-						"error": f"Recording failed: {str(e)}"
-					}))
+            elif mtype == "record_audio":
+                if not session:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "No active session"
+                    }))
+                    continue
+                
+                await ws.send_text(json.dumps({"type": "listening", "message": "Listening for your approach..."}))
+                try:
+                    filename = f"technical_approach_{session.session_id}_{len(session.voice_responses)}.wav"
+                    recorded_file, heard_speech = record_with_vad(filename)
+                    
+                    if not heard_speech:
+                        await ws.send_text(json.dumps({
+                            "type": "no_speech",
+                            "message": "No speech detected. Please speak louder or describe your approach."
+                        }))
+                        continue
+                    
+                    transcript = transcribe(recorded_file)
+                    try:
+                        os.remove(recorded_file)
+                    except Exception:
+                        pass
+                    
+                    if not transcript_is_valid(transcript):
+                        await ws.send_text(json.dumps({
+                            "type": "invalid_transcript",
+                            "message": "Could not understand. Please repeat your approach more clearly.",
+                            "transcript": transcript
+                        }))
+                        continue
+                    
+                    # Store and analyze approach
+                    session.add_voice_response(transcript, "approach")
+                    session.approach_discussed = True
+                    
+                    approach_feedback = await analyze_approach_discussion(session, transcript)
+                    
+                    await ws.send_text(json.dumps({
+                        "type": "approach_analyzed",
+                        "transcript": transcript,
+                        "feedback": approach_feedback,
+                        "approach_discussed": True
+                    }))
+                    
+                except Exception as e:
+                    await ws.send_text(json.dumps({
+                        "type": "error",
+                        "error": f"Recording failed: {str(e)}"
+                    }))
 
-			elif mtype == "request_hint":
-				if not session:
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "No active session"
-					}))
-					continue
-				
-				current_question_data = session.get_current_question()
-				code = msg.get("code", "")
-				language = msg.get("language", "python")
-				
-				# Generate contextual hint using LLM
-				hint = await generate_smart_hint(session, current_question_data, code, language)
-				session.hints_used += 1
-				
-				await ws.send_text(json.dumps({
-					"type": "hint",
-					"hint": hint,
-					"hints_used": session.hints_used
-				}))
+            elif mtype == "request_hint":
+                if not session:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "No active session"
+                    }))
+                    continue
+                
+                current_question_data = session.get_current_question()
+                code = msg.get("code", "")
+                language = msg.get("language", "python")
+                
+                # Generate contextual hint using LLM
+                hint = await generate_smart_hint(session, current_question_data, code, language)
+                session.hints_used += 1
+                
+                await ws.send_text(json.dumps({
+                    "type": "hint",
+                    "hint": hint,
+                    "hints_used": session.hints_used
+                }))
 
-			elif mtype == "stop_recording":
-				# Handle stopping voice recording
-				await ws.send_text(json.dumps({
-					"type": "recording_stopped",
-					"message": "Voice recording stopped"
-				}))
+            elif mtype == "stop_recording":
+                # Handle stopping voice recording
+                await ws.send_text(json.dumps({
+                    "type": "recording_stopped",
+                    "message": "Voice recording stopped"
+                }))
 
-			elif mtype == "end_interview":
-				if not session:
-					await ws.send_text(json.dumps({
-						"type": "error", "error": "No active session"
-					}))
-					continue
-				
-				# Calculate final results
-				final_results = {
-					"session_id": session_id,
-					"topics": session.topics,
-					"total_questions": len(session.questions),
-					"completed_questions": session.current_question_index + 1,
-					"average_score": session.get_final_score(),
-					"individual_scores": session.scores,
-					"total_time": time.time() - session.start_time,
-					"voice_responses": session.voice_responses,
-					"code_submissions": session.code_submissions,
-					"questions_data": session.questions,
-					"final_evaluation": session.final_evaluation,
-					"interview_ended_manually": True
-				}
-				
-				# Save results to file
-				results_file = f"interview_results/interview_results_{session_id}.json"
-				os.makedirs("interview_results", exist_ok=True)
-				
-				with open(results_file, 'w') as f:
-					json.dump(final_results, f, indent=2, default=str)
-				
-				await ws.send_text(json.dumps({
-					"type": "interview_complete",
-					"final_feedback": f"Interview ended. Final score: {session.get_final_score():.1f}/100",
-					"results": final_results,
-					"download_url": f"/download_results/{session_id}"
-				}))
+            elif mtype == "end_interview":
+                print("🔴 User manually ended interview")
+                
+                # Immediately stop any ongoing speech and acknowledge end request
+                await ws.send_text(json.dumps({
+                    "type": "stop_speech",
+                    "message": "Interview ending..."
+                }))
+                
+                if not session:
+                    await ws.send_text(json.dumps({
+                        "type": "error", "error": "No active session"
+                    }))
+                    continue
+                
+                # Calculate current time and duration
+                current_time = time.time()
+                total_duration = current_time - session.start_time
+                
+                print(f"📊 Manual interview completion:")
+                print(f"   Start time: {session.start_time}")
+                print(f"   End time: {current_time}")
+                print(f"   Duration: {total_duration:.1f} seconds")
+                print(f"   Questions completed: {len(session.scores)}")
+                print(f"   Current question index: {session.current_question_index}")
+                
+                # Calculate final results
+                final_results = {
+                    "session_id": session_id,
+                    "topics": session.topics,
+                    "total_questions": len(session.questions),
+                    "completed_questions": len(session.scores),  # Use actual completed count
+                    "average_score": session.get_final_score(),
+                    "individual_scores": session.scores,
+                    "total_time": total_duration,
+                    "voice_responses": session.voice_responses,
+                    "code_submissions": session.code_submissions,
+                    "questions_data": session.questions,
+                    "final_evaluation": session.final_evaluation,
+                    "interview_ended_manually": True,
+                    "completion_status": "manually_ended",
+                    "end_time": current_time
+                }
+                
+                print("📤 Storing manual completion in database...")
+                print(f"🔍 Session ID: {session_id}")
+                print(f"🔍 Session object exists: {session is not None}")
+                print(f"🔍 Database module loaded: {'db' in globals()}")
+                
+                # Store completion in database
+                success = await session.complete_interview_in_db(final_results)
+                print(f"🔍 Database completion result: {success}")
+                
+                # Save results to file (backup)
+                results_file = f"interview_results/interview_results_{session_id}.json"
+                os.makedirs("interview_results", exist_ok=True)
+                
+                with open(results_file, 'w') as f:
+                    json.dump(final_results, f, indent=2, default=str)
+                
+                await ws.send_text(json.dumps({
+                    "type": "interview_complete",
+                    "final_feedback": f"Interview ended manually. Final score: {session.get_final_score():.1f}/100 ({len(session.scores)}/{len(session.questions)} questions completed)",
+                    "results": final_results,
+                    "download_url": f"/download_results/{session_id}"
+                }))
+                
+                print("✅ Manual interview completion processed")
 
-			else:
-				await ws.send_text(json.dumps({
-					"type": "error", "error": f"Unknown message type: {mtype}"
-				}))
+            else:
+                await ws.send_text(json.dumps({
+                    "type": "error", "error": f"Unknown message type: {mtype}"
+                }))
 
-	except WebSocketDisconnect:
-		if session_id and session_id in technical_sessions:
-			del technical_sessions[session_id]
-		return
+    except WebSocketDisconnect:
+        if session_id and session_id in technical_sessions:
+            del technical_sessions[session_id]
+        return
 
 
 # -----------------------------
 # Technical Interview Helper Functions - Enhanced with LLM
 # -----------------------------
 async def llm_evaluate_code_submission(session: TechnicalSession, code: str, language: str, time_spent: int, hints_used: int) -> int:
-	"""
-	Evaluate a code submission using LLM with comprehensive criteria
-	"""
-	print(f"🔍 Starting evaluation for question {session.current_question_index + 1}")
-	print(f"🔍 Code length: {len(code)}, Language: {language}, Time: {time_spent/1000:.1f}s, Hints: {hints_used}")
-	
-	if not client:
-		print("❌ Groq client not available, using fallback evaluation")
-		return evaluate_code_submission_fallback(session, code, language, time_spent, hints_used)
-	
-	current_question = session.get_current_question()
-	print(f"🎯 Evaluating against question: {current_question['question'][:50]}...")
-	
-	# Prepare evaluation context
-	evaluation_prompt = f"""
+    """
+    Evaluate a code submission using LLM with comprehensive criteria
+    """
+    print(f"🔍 Starting evaluation for question {session.current_question_index + 1}")
+    print(f"🔍 Code length: {len(code)}, Language: {language}, Time: {time_spent/1000:.1f}s, Hints: {hints_used}")
+    
+    if not client:
+        print("❌ Groq client not available, using fallback evaluation")
+        return evaluate_code_submission_fallback(session, code, language, time_spent, hints_used)
+    
+    current_question = session.get_current_question()
+    print(f"🎯 Evaluating against question: {current_question['question'][:50]}...")
+    
+    # Prepare evaluation context
+    evaluation_prompt = f"""
 You are a technical interviewer. Evaluate this code submission and respond with ONLY valid JSON (no markdown, no extra text).
 
 Question: {current_question['question']}
@@ -1032,121 +1322,121 @@ Respond exactly like this:
 }}
 """
 
-	print(f"📤 Sending evaluation prompt to LLM...")
+    print(f"📤 Sending evaluation prompt to LLM...")
 
-	try:
-		response = client.chat.completions.create(
-			model="llama-3.3-70b-versatile",
-			messages=[
-				{"role": "system", "content": "You are a technical interviewer. Always respond with valid JSON only. Never use markdown formatting."},
-				{"role": "user", "content": evaluation_prompt}
-			],
-			temperature=0.2,
-			max_tokens=400
-		)
-		
-		response_content = response.choices[0].message.content
-		print(f"📥 Evaluation Response Length: {len(response_content) if response_content else 0}")
-		print(f"📥 Evaluation Response Preview: {response_content[:100] if response_content else 'EMPTY'}...")
-		
-		if not response_content or response_content.strip() == "":
-			print("❌ Empty response from LLM")
-			return evaluate_code_submission_fallback(session, code, language, time_spent, hints_used)
-		
-		print(f"🔍 Raw LLM evaluation response: {response_content}")  # Full debug logging
-		
-		import json
-		
-		# Multi-layer JSON parsing strategy
-		evaluation = None
-		
-		# Layer 1: Direct parsing
-		try:
-			evaluation = json.loads(response_content.strip())
-		except json.JSONDecodeError:
-			# Layer 2: Extract and repair JSON
-			try:
-				extracted = extract_json_from_response(response_content)
-				repaired = repair_json_string(extracted)
-				evaluation = json.loads(repaired)
-			except json.JSONDecodeError:
-				# Layer 3: Manual cleanup and retry
-				try:
-					cleaned = response_content.strip()
-					# Remove any text before first {
-					if '{' in cleaned:
-						cleaned = cleaned[cleaned.find('{'):]
-					# Remove any text after last }
-					if '}' in cleaned:
-						cleaned = cleaned[:cleaned.rfind('}')+1]
-					# Remove markdown and repair
-					cleaned = repair_json_string(cleaned)
-					evaluation = json.loads(cleaned)
-				except json.JSONDecodeError as final_error:
-					print(f"JSON decode error: {final_error}")
-					print(f"Raw response: {response_content}")
-					return evaluate_code_submission_fallback(session, code, language, time_spent, hints_used)
-		
-		if evaluation:
-			score = evaluation.get("score", 70)
-			if not isinstance(score, (int, float)) or score < 0 or score > 100:
-				print(f"Invalid score from LLM: {score}")
-				return evaluate_code_submission_fallback(session, code, language, time_spent, hints_used)
-			
-			# Store detailed evaluation in session for results
-			session.final_evaluation = evaluation
-			return int(score)
-			
-	except Exception as e:
-		print(f"Error in LLM evaluation: {e}")
-		# Fallback to basic evaluation
-		return evaluate_code_submission_fallback(session, code, language, time_spent, hints_used)
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[
+                {"role": "system", "content": "You are a technical interviewer. Always respond with valid JSON only. Never use markdown formatting."},
+                {"role": "user", "content": evaluation_prompt}
+            ],
+            temperature=0.2,
+            max_tokens=400
+        )
+        
+        response_content = response.choices[0].message.content
+        print(f"📥 Evaluation Response Length: {len(response_content) if response_content else 0}")
+        print(f"📥 Evaluation Response Preview: {response_content[:100] if response_content else 'EMPTY'}...")
+        
+        if not response_content or response_content.strip() == "":
+            print("❌ Empty response from LLM")
+            return evaluate_code_submission_fallback(session, code, language, time_spent, hints_used)
+        
+        print(f"🔍 Raw LLM evaluation response: {response_content}")  # Full debug logging
+        
+        import json
+        
+        # Multi-layer JSON parsing strategy
+        evaluation = None
+        
+        # Layer 1: Direct parsing
+        try:
+            evaluation = json.loads(response_content.strip())
+        except json.JSONDecodeError:
+            # Layer 2: Extract and repair JSON
+            try:
+                extracted = extract_json_from_response(response_content)
+                repaired = repair_json_string(extracted)
+                evaluation = json.loads(repaired)
+            except json.JSONDecodeError:
+                # Layer 3: Manual cleanup and retry
+                try:
+                    cleaned = response_content.strip()
+                    # Remove any text before first {
+                    if '{' in cleaned:
+                        cleaned = cleaned[cleaned.find('{'):]
+                    # Remove any text after last }
+                    if '}' in cleaned:
+                        cleaned = cleaned[:cleaned.rfind('}')+1]
+                    # Remove markdown and repair
+                    cleaned = repair_json_string(cleaned)
+                    evaluation = json.loads(cleaned)
+                except json.JSONDecodeError as final_error:
+                    print(f"JSON decode error: {final_error}")
+                    print(f"Raw response: {response_content}")
+                    return evaluate_code_submission_fallback(session, code, language, time_spent, hints_used)
+        
+        if evaluation:
+            score = evaluation.get("score", 70)
+            if not isinstance(score, (int, float)) or score < 0 or score > 100:
+                print(f"Invalid score from LLM: {score}")
+                return evaluate_code_submission_fallback(session, code, language, time_spent, hints_used)
+            
+            # Store detailed evaluation in session for results
+            session.final_evaluation = evaluation
+            return int(score)
+            
+    except Exception as e:
+        print(f"Error in LLM evaluation: {e}")
+        # Fallback to basic evaluation
+        return evaluate_code_submission_fallback(session, code, language, time_spent, hints_used)
 
 
 def evaluate_code_submission_fallback(session: TechnicalSession, code: str, language: str, time_spent: int, hints_used: int) -> int:
-	"""
-	Fallback evaluation method if LLM fails
-	"""
-	base_score = 70
-	
-	# Approach discussion bonus/penalty
-	if not session.approach_discussed:
-		base_score -= 15  # Significant penalty for not discussing approach
-	elif len(session.voice_responses) > 0:
-		base_score += 5  # Bonus for good approach discussion
-	
-	# Time penalty (more strict)
-	time_minutes = time_spent / 60000
-	if time_minutes > 10:
-		base_score -= min(15, (time_minutes - 10) * 2)
-	
-	# Hint penalty (increased)
-	base_score -= hints_used * 7
-	
-	# Code quality bonus
-	quality_bonus = 0
-	if len(code.strip()) > 50:
-		quality_bonus += 5
-	if 'def ' in code or 'function ' in code or 'class ' in code:
-		quality_bonus += 8
-	if any(keyword in code.lower() for keyword in ['if', 'else', 'for', 'while']):
-		quality_bonus += 5
-		
-	final_score = max(0, min(100, base_score + quality_bonus))
-	return final_score
+    """
+    Fallback evaluation method if LLM fails
+    """
+    base_score = 70
+    
+    # Approach discussion bonus/penalty
+    if not session.approach_discussed:
+        base_score -= 15  # Significant penalty for not discussing approach
+    elif len(session.voice_responses) > 0:
+        base_score += 5  # Bonus for good approach discussion
+    
+    # Time penalty (more strict)
+    time_minutes = time_spent / 60000
+    if time_minutes > 10:
+        base_score -= min(15, (time_minutes - 10) * 2)
+    
+    # Hint penalty (increased)
+    base_score -= hints_used * 7
+    
+    # Code quality bonus
+    quality_bonus = 0
+    if len(code.strip()) > 50:
+        quality_bonus += 5
+    if 'def ' in code or 'function ' in code or 'class ' in code:
+        quality_bonus += 8
+    if any(keyword in code.lower() for keyword in ['if', 'else', 'for', 'while']):
+        quality_bonus += 5
+        
+    final_score = max(0, min(100, base_score + quality_bonus))
+    return final_score
 
 
 async def analyze_approach_discussion(session: TechnicalSession, transcript: str) -> str:
-	"""
-	Analyze the quality of approach discussion using LLM
-	"""
-	if not client:
-		print("Groq client not available, using fallback approach analysis")
-		return "Good start on explaining your approach. Consider discussing time complexity and edge cases for a more complete analysis."
-	
-	current_question = session.get_current_question()
-	
-	analysis_prompt = f"""
+    """
+    Analyze the quality of approach discussion using LLM
+    """
+    if not client:
+        print("Groq client not available, using fallback approach analysis")
+        return "Good start on explaining your approach. Consider discussing time complexity and edge cases for a more complete analysis."
+    
+    current_question = session.get_current_question()
+    
+    analysis_prompt = f"""
 Analyze the candidate's approach discussion for this technical interview question.
 
 Question: {current_question['question']}
@@ -1165,33 +1455,33 @@ Evaluate:
 Provide constructive feedback (2-3 sentences) focusing on strengths and areas for improvement.
 """
 
-	try:
-		response = client.chat.completions.create(
-			model="llama-3.3-70b-versatile",
-			messages=[{"role": "user", "content": analysis_prompt}],
-			temperature=0.4,
-			max_tokens=300
-		)
-		
-		response_content = response.choices[0].message.content
-		if not response_content or response_content.strip() == "":
-			print("Empty response from LLM for approach analysis")
-			return "Good start on explaining your approach. Consider discussing time complexity and edge cases for a more complete analysis."
-		
-		return response_content.strip()
-	except Exception as e:
-		print(f"Error in approach analysis: {e}")
-		return "Good start on explaining your approach. Consider discussing time complexity and edge cases for a more complete analysis."
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": analysis_prompt}],
+            temperature=0.4,
+            max_tokens=300
+        )
+        
+        response_content = response.choices[0].message.content
+        if not response_content or response_content.strip() == "":
+            print("Empty response from LLM for approach analysis")
+            return "Good start on explaining your approach. Consider discussing time complexity and edge cases for a more complete analysis."
+        
+        return response_content.strip()
+    except Exception as e:
+        print(f"Error in approach analysis: {e}")
+        return "Good start on explaining your approach. Consider discussing time complexity and edge cases for a more complete analysis."
 
 
 async def generate_smart_hint(session: TechnicalSession, question_data: dict, current_code: str, language: str) -> str:
-	"""
-	Generate contextual hints using LLM based on current progress
-	"""
-	if not client:
-		print("Groq client not available, using fallback hint generation")
-		return generate_hint_fallback(question_data, current_code, language, session.hints_used)
-	hint_prompt = f"""
+    """
+    Generate contextual hints using LLM based on current progress
+    """
+    if not client:
+        print("Groq client not available, using fallback hint generation")
+        return generate_hint_fallback(question_data, current_code, language, session.hints_used)
+    hint_prompt = f"""
 You are helping a candidate in a technical interview. They've asked for a hint.
 
 Question: {question_data['question']}
@@ -1215,50 +1505,50 @@ Provide a helpful but not overly revealing hint. The hint should:
 Keep the hint to 1-2 sentences.
 """
 
-	try:
-		response = client.chat.completions.create(
-			model="llama-3.3-70b-versatile",
-			messages=[{"role": "user", "content": hint_prompt}],
-			temperature=0.6,
-			max_tokens=200
-		)
-		
-		response_content = response.choices[0].message.content
-		if not response_content or response_content.strip() == "":
-			print("Empty response from LLM for hint generation")
-			return generate_hint_fallback(question_data, current_code, language, session.hints_used)
-		
-		return response_content.strip()
-	except Exception as e:
-		print(f"Error generating hint: {e}")
-		return generate_hint_fallback(question_data, current_code, language, session.hints_used)
+    try:
+        response = client.chat.completions.create(
+            model="llama-3.3-70b-versatile",
+            messages=[{"role": "user", "content": hint_prompt}],
+            temperature=0.6,
+            max_tokens=200
+        )
+        
+        response_content = response.choices[0].message.content
+        if not response_content or response_content.strip() == "":
+            print("Empty response from LLM for hint generation")
+            return generate_hint_fallback(question_data, current_code, language, session.hints_used)
+        
+        return response_content.strip()
+    except Exception as e:
+        print(f"Error generating hint: {e}")
+        return generate_hint_fallback(question_data, current_code, language, session.hints_used)
 
 
 def generate_hint_fallback(question_data: dict, current_code: str, language: str, hints_used: int) -> str:
-	"""
-	Fallback hint generation if LLM fails
-	"""
-	topics = question_data.get('topics', [])
-	hints = question_data.get('hints', [])
-	
-	# Use pre-generated hints if available
-	if hints and hints_used <= len(hints):
-		return hints[min(hints_used, len(hints) - 1)]
-	
-	# Generic progressive hints
-	if hints_used == 1:
-		return "Think about what data structure would be most efficient for this problem."
-	elif hints_used == 2:
-		return "Consider the time complexity of your current approach. Can it be optimized?"
-	elif hints_used >= 3:
-		return "Focus on the core algorithm. Try writing pseudocode first, then implement step by step."
-	
-	return "Break the problem down into smaller steps and tackle each one systematically."
+    """
+    Fallback hint generation if LLM fails
+    """
+    topics = question_data.get('topics', [])
+    hints = question_data.get('hints', [])
+    
+    # Use pre-generated hints if available
+    if hints and hints_used <= len(hints):
+        return hints[min(hints_used, len(hints) - 1)]
+    
+    # Generic progressive hints
+    if hints_used == 1:
+        return "Think about what data structure would be most efficient for this problem."
+    elif hints_used == 2:
+        return "Consider the time complexity of your current approach. Can it be optimized?"
+    elif hints_used >= 3:
+        return "Focus on the core algorithm. Try writing pseudocode first, then implement step by step."
+    
+    return "Break the problem down into smaller steps and tackle each one systematically."
 
 
 # ---------------
 # Uvicorn helper
 # ---------------
 def get_app():
-	return app
+    return app
 

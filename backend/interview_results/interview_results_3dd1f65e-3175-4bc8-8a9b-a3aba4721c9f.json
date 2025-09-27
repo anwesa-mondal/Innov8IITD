@@ -1,0 +1,210 @@
+{
+  "session_id": "3dd1f65e-3175-4bc8-8a9b-a3aba4721c9f",
+  "topics": [
+    "Strings",
+    "Linked Lists"
+  ],
+  "total_questions": 4,
+  "completed_questions": 2,
+  "average_score": 85.0,
+  "individual_scores": [
+    85
+  ],
+  "total_time": 44.32907795906067,
+  "voice_responses": [],
+  "code_submissions": [
+    {
+      "code": "class Node:\n    def __init__(self, data):\n        self.data = data\n        self.next = None\n\ndef can_rearrange(head, target: str) -> bool:\n    # Count frequencies in linked list\n    freq_list = {}\n    current = head\n    while current:\n        freq_list[current.data] = freq_list.get(current.data, 0) + 1\n        current = current.next\n\n    # Count frequencies in target string\n    freq_target = {}\n    for ch in target:\n        freq_target[ch] = freq_target.get(ch, 0) + 1\n\n    # Compare the two frequency dictionaries\n    return freq_list == freq_target\n\n\n# \ud83d\udd39 Example Usage\n# Linked list: a -> b -> c -> a\nhead = Node('a')\nhead.next = Node('b')\nhead.next.next = Node('c')\nhead.next.next.next = Node('a')\n\nprint(can_rearrange(head, \"abca\"))   # True\nprint(can_rearrange(head, \"aabc\"))   # True\nprint(can_rearrange(head, \"abcd\"))   # False\n",
+      "language": "python",
+      "timestamp": 1758995757.297867,
+      "question_id": 1,
+      "hints_used_so_far": 2
+    }
+  ],
+  "questions_data": [
+    {
+      "question": "Given a linked list of characters and a string, write a function to check if the linked list can be rearranged into the given string. The linked list nodes contain a character and a pointer to the next node. The string contains only lowercase English letters.",
+      "difficulty": "easy",
+      "topics": [
+        "Strings",
+        "Linked Lists"
+      ],
+      "hints": [
+        "Count the frequency of characters in the string and the linked list",
+        "Compare the frequency counts to determine if the linked list can be rearranged",
+        "Use a hash map or dictionary to store the frequency counts"
+      ],
+      "test_cases": [
+        {
+          "input": {
+            "linked_list": [
+              "a",
+              "b",
+              "c"
+            ],
+            "string": "abc"
+          },
+          "output": true,
+          "explanation": "The linked list can be rearranged into the string"
+        },
+        {
+          "input": {
+            "linked_list": [
+              "a",
+              "b",
+              "c"
+            ],
+            "string": "abcd"
+          },
+          "output": false,
+          "explanation": "The linked list cannot be rearranged into the string due to the extra character 'd'"
+        },
+        {
+          "input": {
+            "linked_list": [
+              "a",
+              "a",
+              "b"
+            ],
+            "string": "aab"
+          },
+          "output": true,
+          "explanation": "The linked list can be rearranged into the string with duplicate characters"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Efficiency of the solution in terms of time and space complexity"
+      ],
+      "id": 1
+    },
+    {
+      "question": "Given a linked list of strings, write a function to find the first node that contains a palindrome string. If no such node exists, return null. A palindrome string reads the same backward as forward.",
+      "difficulty": "medium",
+      "topics": [
+        "Strings",
+        "Linked Lists"
+      ],
+      "hints": [
+        "Use a two-pointer approach to check for palindrome strings",
+        "Traverse the linked list and apply the palindrome check on each node's string",
+        "Consider using a helper function to check for palindrome strings"
+      ],
+      "test_cases": [
+        {
+          "input": {
+            "linked_list": [
+              "madam",
+              "hello",
+              "level",
+              "world"
+            ],
+            "node": "null"
+          },
+          "output": "madam",
+          "explanation": "The first node with a palindrome string is 'madam'"
+        },
+        {
+          "input": {
+            "linked_list": [
+              "hello",
+              "world",
+              "abcba"
+            ],
+            "node": "null"
+          },
+          "output": "abcba",
+          "explanation": "The first node with a palindrome string is 'abcba'"
+        },
+        {
+          "input": {
+            "linked_list": [
+              "hello",
+              "world",
+              "abcdef"
+            ],
+            "node": "null"
+          },
+          "output": "null",
+          "explanation": "No node contains a palindrome string"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Efficiency and time complexity of the solution"
+      ],
+      "id": 2
+    },
+    {
+      "question": "Given a linked list of strings, write a function to check if the concatenated string is a palindrome. The function should return true if the concatenated string is a palindrome, false otherwise.",
+      "difficulty": "medium",
+      "topics": [
+        "Strings",
+        "Linked Lists"
+      ],
+      "hints": [
+        "First, concatenate all the strings in the linked list into a single string",
+        "Then, compare the concatenated string with its reverse to check if it's a palindrome",
+        "Consider using a two-pointer approach to compare the string with its reverse"
+      ],
+      "test_cases": [
+        {
+          "input": "{\"head\": {\"val\": \"a\", \"next\": {\"val\": \"b\", \"next\": {\"val\": \"a\", \"next\": null}}}}",
+          "output": "true",
+          "explanation": "The concatenated string is 'aba' which is a palindrome"
+        },
+        {
+          "input": "{\"head\": {\"val\": \"a\", \"next\": {\"val\": \"b\", \"next\": {\"val\": \"c\", \"next\": null}}}}",
+          "output": "false",
+          "explanation": "The concatenated string is 'abc' which is not a palindrome"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Time and space complexity analysis"
+      ],
+      "id": 3
+    },
+    {
+      "question": "Write a function to solve a hard problem related to Strings, Linked Lists. Explain your approach first.",
+      "difficulty": "hard",
+      "topics": [
+        "Strings",
+        "Linked Lists"
+      ],
+      "hints": [
+        "Think about the data structures you need",
+        "Consider the time complexity",
+        "Don't forget edge cases"
+      ],
+      "test_cases": [
+        {
+          "input": "test input",
+          "output": "expected output",
+          "explanation": "basic test case"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem approach",
+        "Code implementation",
+        "Edge cases"
+      ],
+      "id": 4
+    }
+  ],
+  "final_evaluation": {
+    "score": 85,
+    "feedback": "The candidate's solution is mostly correct and efficient",
+    "correctness": "The function correctly checks if the linked list can be rearranged into the target string",
+    "approach_quality": "The approach is good, using frequency dictionaries to compare the linked list and target string",
+    "code_quality": "The code is well-structured and readable, with clear variable names and comments",
+    "areas_for_improvement": [
+      "Error handling for edge cases, such as an empty linked list or target string",
+      "Consider using Python's built-in Counter class for frequency counting"
+    ]
+  },
+  "interview_ended_manually": true
+}
