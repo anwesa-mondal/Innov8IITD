@@ -1,0 +1,17 @@
+{
+  "interview_id": "e1b7b0f7-0ad1-47f5-af9c-afdc27da8c62",
+  "timestamp": "2025-09-28T06:21:04.802480",
+  "interview_type": "resume",
+  "conversation": [
+    {
+      "candidate": "go read it yeah show the chat",
+      "evaluation": "The candidate seems to be instructing to read the resume, but hasn't provided a clear response to start the interview.",
+      "next_question": "Let's begin with your education background, Aashi. Can you tell me about your current studies in Computer Science with a focus on Artificial Intelligence at Indira Gandhi Delhi Technical University for Women?",
+      "hint": null,
+      "final_feedback": null
+    }
+  ],
+  "resume_id": "a3e4b82c-cc15-42ea-bdee-bdaaeb9bad57",
+  "topics": [],
+  "total_interactions": 1
+}

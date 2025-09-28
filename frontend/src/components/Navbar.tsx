@@ -1,22 +1,19 @@
 'use client';
 
 import { useState, useEffect } from 'react';
+import Link from 'next/link';
+import { useRouter, usePathname } from 'next/navigation';
 import './Navbar.css';
 
 interface NavbarProps {
-  onTakeInterview?: () => void;
-  onViewResults?: () => void;
-  onGoHome?: () => void;
   theme?: 'light' | 'dark';
 }
 
-const Navbar = ({ onTakeInterview, onViewResults, onGoHome, theme = 'light' }: NavbarProps) => {
+const Navbar = ({ theme = 'light' }: NavbarProps) => {
   const [isScrolled, setIsScrolled] = useState(false);
-
-  // Handle undefined prop functions with defaults
-  const handleTakeInterview = onTakeInterview || (() => console.log('Take Interview clicked'));
-  const handleViewResults = onViewResults || (() => console.log('Results clicked'));
-  const handleGoHome = onGoHome || (() => console.log('Home clicked'));
+  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
+  const router = useRouter();
+  const pathname = usePathname();
 
   useEffect(() => {
     const handleScroll = () => {
@@ -27,36 +24,50 @@ const Navbar = ({ onTakeInterview, onViewResults, onGoHome, theme = 'light' }: N
     return () => window.removeEventListener('scroll', handleScroll);
   }, []);
 
-  const navLinks = [
-    { href: '#home', label: 'Home', onClick: handleGoHome },
-    { href: '#interview', label: 'Take Interview', onClick: handleTakeInterview },
-    { href: '#past-interviews', label: 'Past Interviews' },
-    { href: '#results', label: 'Results', onClick: handleViewResults },
+    const navLinks = [
+    { href: '/', label: 'Home' },
+    { href: '/interview', label: 'Take Interview' },
+    { href: '/past-interviews', label: 'Past Interviews' }
   ];
 
+  const isActive = (href: string) => {
+    if (href === '/') return pathname === '/';
+    return pathname.startsWith(href);
+  };
+
+  const toggleMobileMenu = () => {
+    setIsMobileMenuOpen(!isMobileMenuOpen);
+  };
+
   return (
-    <nav className={`navbar ${isScrolled ? 'navbar-scrolled' : ''}`}>
+    <nav className={`navbar ${isScrolled ? 'navbar-scrolled' : ''} ${theme === 'dark' ? 'navbar-dark' : 'navbar-light'}`}>
       <div className="container">
         <div className="navbar-content">
           <div className="navbar-brand">
-            <span className="brand-text">CodeSage</span>
+            <Link href="/" className="brand-link">
+              <span className="brand-text">CodeSage</span>
+            </Link>
           </div>
           
-          <div className="navbar-links">
+          <div className={`navbar-links ${isMobileMenuOpen ? 'mobile-open' : ''}`}>
             {navLinks.map((link, index) => (
-              <a 
+              <Link 
                 key={index} 
                 href={link.href} 
-                className="nav-link"
-                onClick={link.onClick ? (e) => { e.preventDefault(); link.onClick(); } : undefined}
+                className={`nav-link ${isActive(link.href) ? 'nav-link-active' : ''}`}
+                onClick={() => setIsMobileMenuOpen(false)}
               >
                 {link.label}
-              </a>
+              </Link>
             ))}
           </div>
 
           <div className="navbar-mobile">
-            <button className="mobile-menu-btn">
+            <button 
+              className={`mobile-menu-btn ${isMobileMenuOpen ? 'active' : ''}`}
+              onClick={toggleMobileMenu}
+              aria-label="Toggle mobile menu"
+            >
               <span></span>
               <span></span>
               <span></span>
