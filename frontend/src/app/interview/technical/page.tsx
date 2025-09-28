@@ -489,12 +489,7 @@ export default function TechnicalInterview() {
   if (interviewCompleted) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-white via-cyan-50 to-violet-50 overflow-hidden">
-        <Navbar 
-          theme="light" 
-          onTakeInterview={handleTakeInterview}
-          onViewResults={handleViewResults}
-          onGoHome={handleGoHome}
-        />
+        <Navbar theme="light" />
         
         <div className="flex items-center justify-center min-h-screen pt-20">
           <motion.div
@@ -587,12 +582,7 @@ export default function TechnicalInterview() {
   if (!interviewStarted) {
     return (
       <div className="min-h-screen bg-gray-50 overflow-hidden">
-        <Navbar 
-          theme="light" 
-          onTakeInterview={handleTakeInterview}
-          onViewResults={handleViewResults}
-          onGoHome={handleGoHome}
-        />
+        <Navbar theme="light" />
         
         <div className="flex items-center justify-center min-h-screen pt-20">
           <motion.div
@@ -694,12 +684,7 @@ export default function TechnicalInterview() {
   if (isEndingInterview) {
     return (
       <div className="min-h-screen bg-gray-50 overflow-hidden">
-        <Navbar 
-          theme="light" 
-          onTakeInterview={handleTakeInterview}
-          onViewResults={handleViewResults}
-          onGoHome={handleGoHome}
-        />
+        <Navbar theme="light" />
         
         <div className="flex items-center justify-center min-h-screen pt-20">
           <motion.div
@@ -733,12 +718,7 @@ export default function TechnicalInterview() {
 
   return (
           <div className="min-h-screen bg-gray-50 overflow-hidden">
-      <Navbar 
-        theme="light" 
-        onTakeInterview={handleTakeInterview}
-        onViewResults={handleViewResults}
-        onGoHome={handleGoHome}
-      />
+      <Navbar theme="light" />
       
       {/* Main Interview Interface */}
       <div className="pt-16 h-screen flex flex-col">

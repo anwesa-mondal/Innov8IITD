@@ -1,0 +1,195 @@
+{
+  "session_id": "a668eb06-f37d-42a2-bde1-bff18fb31a9f",
+  "topics": [
+    "Arrays",
+    "Strings"
+  ],
+  "total_questions": 4,
+  "completed_questions": 0,
+  "average_score": 0,
+  "individual_scores": [],
+  "total_time": 6.658149242401123,
+  "voice_responses": [],
+  "code_submissions": [],
+  "questions_data": [
+    {
+      "question": "Given an array of strings, write a function that returns the longest string in the array. If there are multiple strings with the same maximum length, return the first one encountered.",
+      "difficulty": "easy",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Initialize the longest string with the first string in the array",
+        "Iterate through the array and compare the length of each string with the current longest string",
+        "Update the longest string if a longer string is found"
+      ],
+      "test_cases": [
+        {
+          "input": [
+            "apple",
+            "banana",
+            "cherry"
+          ],
+          "output": "banana",
+          "explanation": "banana is the longest string in the array"
+        },
+        {
+          "input": [
+            "hello",
+            "world",
+            "abc"
+          ],
+          "output": "hello",
+          "explanation": "hello and world have the same length, so the first one is returned"
+        },
+        {
+          "input": [
+            "a",
+            "bb",
+            "ccc"
+          ],
+          "output": "ccc",
+          "explanation": "ccc is the longest string in the array"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality"
+      ],
+      "id": 1
+    },
+    {
+      "question": "Given two arrays of strings, find the common strings between them and return the result as a new array. The strings are case-sensitive and the order of the result does not matter. For example, if the input arrays are ['apple', 'banana', 'cherry'] and ['banana', 'cherry', 'date'], the output should be ['banana', 'cherry'].",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Use a set data structure to store unique strings from one of the arrays for efficient lookups",
+        "Iterate over the other array and check for each string if it exists in the set",
+        "Use array methods like filter or map to create the result array"
+      ],
+      "test_cases": [
+        {
+          "input": "[['apple', 'banana', 'cherry'], ['banana', 'cherry', 'date']]",
+          "output": "['banana', 'cherry']",
+          "explanation": "Common strings between the two arrays"
+        },
+        {
+          "input": "[['hello', 'world'], ['foo', 'bar']]",
+          "output": "[]",
+          "explanation": "No common strings between the two arrays"
+        },
+        {
+          "input": "[['a', 'b', 'c'], ['c', 'b', 'a']]",
+          "output": "['a', 'b', 'c']",
+          "explanation": "All strings are common between the two arrays"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Efficiency of the solution in terms of time and space complexity"
+      ],
+      "id": 2
+    },
+    {
+      "question": "Given two arrays of strings, find the common strings between them and return the result as an array of strings. The input arrays may contain duplicate strings, but the output array should not contain any duplicates. For example, if the input arrays are ['apple', 'banana', 'cherry'] and ['banana', 'cherry', 'date'], the output should be ['banana', 'cherry'].",
+      "difficulty": "medium",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Use a set data structure to remove duplicates from the input arrays",
+        "Use the set intersection operation to find the common strings between the two arrays",
+        "Convert the resulting set back to an array before returning the result"
+      ],
+      "test_cases": [
+        {
+          "input": "[['apple', 'banana', 'cherry'], ['banana', 'cherry', 'date']]",
+          "output": "['banana', 'cherry']",
+          "explanation": "Common strings between the two input arrays"
+        },
+        {
+          "input": "[['apple', 'apple', 'banana'], ['banana', 'banana', 'cherry']]",
+          "output": "['banana']",
+          "explanation": "No duplicates in the output array"
+        },
+        {
+          "input": "[[], ['apple', 'banana', 'cherry']]",
+          "output": "[]",
+          "explanation": "No common strings between an empty array and a non-empty array"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Efficiency of the solution in terms of time and space complexity"
+      ],
+      "id": 3
+    },
+    {
+      "question": "Given two arrays of strings, find the longest common subsequence of strings where the order of strings matters. For example, if we have two arrays ['abc', 'def', 'ghi'] and ['abc', 'jkl', 'def', 'ghi'], the longest common subsequence would be ['abc', 'def', 'ghi']. If there are multiple common subsequences with the same maximum length, return any one of them.",
+      "difficulty": "hard",
+      "topics": [
+        "Arrays",
+        "Strings"
+      ],
+      "hints": [
+        "Use dynamic programming to solve this problem",
+        "Create a 2D array to store the lengths of common subsequences",
+        "Backtrack through the 2D array to construct the longest common subsequence"
+      ],
+      "test_cases": [
+        {
+          "input": {
+            "array1": [
+              "abc",
+              "def",
+              "ghi"
+            ],
+            "array2": [
+              "abc",
+              "jkl",
+              "def",
+              "ghi"
+            ]
+          },
+          "output": [
+            "abc",
+            "def",
+            "ghi"
+          ],
+          "explanation": "The longest common subsequence of the two input arrays"
+        },
+        {
+          "input": {
+            "array1": [
+              "abc",
+              "def"
+            ],
+            "array2": [
+              "ghi",
+              "jkl"
+            ]
+          },
+          "output": [],
+          "explanation": "There is no common subsequence between the two input arrays"
+        }
+      ],
+      "evaluation_criteria": [
+        "Problem understanding and approach discussion",
+        "Code correctness and implementation quality",
+        "Time and space complexity analysis"
+      ],
+      "id": 4
+    }
+  ],
+  "final_evaluation": null,
+  "interview_ended_manually": true,
+  "completion_status": "manually_ended",
+  "end_time": 1759021014.034368
+}

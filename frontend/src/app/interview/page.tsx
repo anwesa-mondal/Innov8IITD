@@ -28,11 +28,7 @@ export default function InterviewPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar 
-        onTakeInterview={handleTakeInterview}
-        onViewResults={handleViewResults}
-        onGoHome={handleGoHome}
-      />
+      <Navbar theme="light" />
       
       <div className="pt-20">
         <div className="max-w-6xl mx-auto px-6 py-12">
