@@ -58,8 +58,8 @@ export default function ResumeInterviewPage() {
   const resizeRef = useRef<HTMLDivElement>(null);
   const cameraRef = useRef<HTMLDivElement>(null);
 
-  const HTTP_BASE = 'http://127.0.0.1:8000';
-  const WS_URL = 'ws://127.0.0.1:8000/ws';
+  const HTTP_BASE = 'https://codesage-backend-m9fu.onrender.com';
+  const WS_URL = 'wss://codesage-backend-m9fu.onrender.com/ws';
 
   const addLog = (message: string) => {
     setLogs(prev => [...prev, message]);
@@ -346,7 +346,7 @@ export default function ResumeInterviewPage() {
             // Save results info to localStorage for results page
             const resultsData = {
               interview_id: msg.interview_id,
-              download_url: `http://127.0.0.1:8000${msg.download_url}`,
+              download_url: `https://codesage-backend-m9fu.onrender.com${msg.download_url}`,
               timestamp: new Date().toISOString(),
               interview_type: 'resume'
             };

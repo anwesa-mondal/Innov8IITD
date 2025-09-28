@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 export async function GET() {
   try {
     // Make a request to the Python backend
-    const response = await fetch('http://127.0.0.1:8000/api/interviews', {
+    const response = await fetch('https://codesage-backend-m9fu.onrender.com/api/interviews', {
       method: 'GET',
       headers: {
         'Content-Type': 'application/json',

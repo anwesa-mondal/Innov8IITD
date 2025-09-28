@@ -43,7 +43,7 @@ export default function InterviewResultsPage() {
           
           // Try to fetch from database API
           try {
-            const response = await fetch(`http://localhost:8000/api/interview-results/${sessionId}`);
+            const response = await fetch(`https://codesage-backend-m9fu.onrender.com/api/interview-results/${sessionId}`);
             if (response.ok) {
               const data = await response.json();
               console.log('Fetched results from database:', data);

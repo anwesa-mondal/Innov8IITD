@@ -382,7 +382,7 @@ export default function TechnicalInterview() {
   };
 
   const downloadResults = (sessionId: string) => {
-    const downloadUrl = `http://127.0.0.1:8000/download_results/${sessionId}`;
+    const downloadUrl = `https://codesage-backend-m9fu.onrender.com/download_results/${sessionId}`;
     const link = document.createElement("a");
     link.href = downloadUrl;
     link.download = `interview_results_${sessionId}.json`;
@@ -398,7 +398,7 @@ export default function TechnicalInterview() {
     addChatMessage("system", "Initializing AI Interview System...");
 
     try {
-      const ws = new WebSocket("ws://localhost:8000/ws/technical");
+      const ws = new WebSocket("wss://codesage-backend-m9fu.onrender.com/ws/technical");
 
       ws.onopen = () => {
         addChatMessage("system", "Connected to AI Interviewer");
