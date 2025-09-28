@@ -28,13 +28,7 @@ export default function InterviewPage() {
 
   return (
     <div className="min-h-screen bg-gray-50">
-      <Navbar 
-        onTakeInterview={handleTakeInterview}
-        onViewResults={handleViewResults}
-        onGoHome={handleGoHome}
-      />
       
-      <div className="pt-20">
         <div className="max-w-6xl mx-auto px-6 py-12">
           <div className="text-center mb-12">
             <h1 className="text-4xl font-bold text-gray-900 mb-4">
@@ -142,7 +136,7 @@ export default function InterviewPage() {
             </div>
           </div>
         </div>
-      </div>
+      
     </div>
   );
 }

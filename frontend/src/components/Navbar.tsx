@@ -32,7 +32,6 @@ const Navbar = ({ onTakeInterview, onViewResults, onGoHome, theme = 'light' }: N
     { href: '#interview', label: 'Take Interview', onClick: handleTakeInterview },
     { href: '#past-interviews', label: 'Past Interviews' },
     { href: '#results', label: 'Results', onClick: handleViewResults },
-    { href: '#upload', label: 'Upload Resume' }
   ];
 
   return (
