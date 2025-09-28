@@ -68,7 +68,7 @@ export default function TechnicalInterview() {
   const [hintsUsed, setHintsUsed] = useState(0);
   const [approachDiscussed, setApproachDiscussed] = useState(false);
   const [hintTimer, setHintTimer] = useState<NodeJS.Timeout | null>(null);
-  const [autoHintEnabled, setAutoHintEnabled] = useState(false);
+  const [autoHintEnabled, setAutoHintEnabled] = useState(true); // Enable auto hints
   const [isRecordingApproach, setIsRecordingApproach] = useState(false);
   const [code, setCode] = useState('');
   const [language, setLanguage] = useState('python');
@@ -86,6 +86,8 @@ export default function TechnicalInterview() {
   const [showResults, setShowResults] = useState(false);
   const [interviewCompleted, setInterviewCompleted] = useState(false);
   const [isEndingInterview, setIsEndingInterview] = useState(false);
+
+  const [speechInitialized, setSpeechInitialized] = useState(false);
 
   const wsRef = useRef<WebSocket | null>(null);
   const recognitionRef = useRef<any>(null);
@@ -142,14 +144,14 @@ export default function TechnicalInterview() {
     return () => stopCamera();
   }, []);
 
-  // Auto hint timer - gives hint every 30 seconds
+  // Auto hint timer - gives hint every 60 seconds for better user experience
   useEffect(() => {
     if (interviewStarted && autoHintEnabled && currentQuestion) {
       if (hintTimer) clearTimeout(hintTimer);
       
       const timer = setTimeout(() => {
         requestHint();
-      }, 30000);
+      }, 60000); // Increased from 15000 to 60000 (60 seconds)
       
       setHintTimer(timer);
     }
@@ -157,6 +159,12 @@ export default function TechnicalInterview() {
 
   const requestHint = () => {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) return;
+
+    // Reset hint timer when user manually requests hint
+    if (hintTimer) {
+      clearTimeout(hintTimer);
+      setHintTimer(null);
+    }
 
     setHintsUsed(prev => prev + 1);
     wsRef.current.send(JSON.stringify({
@@ -171,6 +179,12 @@ export default function TechnicalInterview() {
     if (!wsRef.current || wsRef.current.readyState !== WebSocket.OPEN) {
       addChatMessage('system', '❌ WebSocket connection not available');
       return;
+    }
+    
+    // Reset hint timer when user starts approach discussion
+    if (hintTimer) {
+      clearTimeout(hintTimer);
+      setHintTimer(null);
     }
     
     addChatMessage('system', '🎙️ Starting approach discussion...');
@@ -227,12 +241,53 @@ export default function TechnicalInterview() {
     return templates[lang as keyof typeof templates] || templates.python;
   };
 
+  const initializeSpeech = () => {
+    if (!speechInitialized) {
+      console.log('🔊 Initializing speech synthesis...');
+      // Create a silent utterance to initialize speech synthesis
+      const silentUtterance = new SpeechSynthesisUtterance('');
+      silentUtterance.volume = 0;
+      speechSynthesis.speak(silentUtterance);
+      setSpeechInitialized(true);
+      console.log('✅ Speech synthesis initialized');
+    }
+  };
+
   const speakText = (text: string) => {
-    if (!audioEnabled) return;
+    console.log('🔊 speakText called with:', text);
+    console.log('🔊 audioEnabled:', audioEnabled);
+    console.log('🔊 speechInitialized:', speechInitialized);
     
+    if (!audioEnabled) {
+      console.log('🔇 Speech disabled by audioEnabled setting');
+      return;
+    }
+    
+    if (!text || text.trim() === '') {
+      console.log('🔇 No text to speak');
+      return;
+    }
+    
+    // Initialize speech if not already done
+    if (!speechInitialized) {
+      console.log('🔊 Speech not initialized, initializing now...');
+      initializeSpeech();
+    }
+    
+    // Stop any ongoing speech first
+    speechSynthesis.cancel();
+    
+    console.log('🔊 Creating speech utterance...');
     const utterance = new SpeechSynthesisUtterance(text);
     utterance.rate = 0.9;
     utterance.pitch = 1;
+    utterance.volume = 1.0;
+    
+    utterance.onstart = () => console.log('🔊 Speech started');
+    utterance.onend = () => console.log('🔊 Speech ended');
+    utterance.onerror = (error) => console.error('🔊 Speech error:', error);
+    
+    console.log('🔊 Calling speechSynthesis.speak...');
     speechSynthesis.speak(utterance);
   };
 
@@ -298,13 +353,16 @@ export default function TechnicalInterview() {
         setInterviewStarted(true);
         setQuestionStartTime(Date.now());
         
+        // Initialize speech synthesis on connection (user has already interacted)
+        initializeSpeech();
+        
         // Save interview start time for duration calculations
         localStorage.setItem('interviewStartTime', Date.now().toString());
         
         // Send greeting message from AI interviewer
         const greetingMessage = `Hello! I'm your AI Technical Interviewer. We'll have 4 questions in total, focusing on the topics you selected: ${selectedTopics.join(', ')}. Each question will be of increasing difficulty: Easy, Medium, Medium, Hard. Let's begin!`;
         addChatMessage('ai', greetingMessage);
-        speakText(greetingMessage);
+        speakText(greetingMessage); // Speak the introduction
         
         // Initialize technical interview
         ws.send(JSON.stringify({
@@ -353,11 +411,20 @@ export default function TechnicalInterview() {
         setApproachDiscussed(false);
         setCode(getLanguageTemplate(language));
         addChatMessage('ai', data.next_question || '');
-        speakText(`Question 1: ${data.next_question || ''}`);
+        // Don't speak questions - user can read them
         break;
         
       case 'hint':
+        const hintMessage = `Here's a hint to help you: ${data.hint}. Now please attempt the question.`;
         addChatMessage('ai', `💡 ${data.hint}`);
+        speakText(hintMessage);
+        
+        // Restart hint timer after hint is provided
+        if (hintTimer) clearTimeout(hintTimer);
+        const hintRestartTimer = setTimeout(() => {
+          requestHint();
+        }, 60000); // 60 seconds
+        setHintTimer(hintRestartTimer);
         break;
         
       case 'code_feedback':
@@ -366,12 +433,26 @@ export default function TechnicalInterview() {
         
       case 'approach_feedback':
       case 'approach_analyzed':
-        addChatMessage('ai', `🎯 ${data.feedback}`);
-        setApproachDiscussed(true);
-        setIsRecordingApproach(false);
+        // Show user's transcript as their message
         if (data.transcript) {
           addChatMessage('user', data.transcript);
         }
+        
+        // Show and speak AI's reply to the approach discussion
+        if (data.feedback) {
+          addChatMessage('ai', `🎯 ${data.feedback}`);
+          speakText(data.feedback);
+        }
+        
+        setApproachDiscussed(true);
+        setIsRecordingApproach(false);
+        
+        // Restart hint timer after approach discussion completes
+        if (hintTimer) clearTimeout(hintTimer);
+        const newTimer = setTimeout(() => {
+          requestHint();
+        }, 60000); // 60 seconds
+        setHintTimer(newTimer);
         break;
         
       case 'listening':
@@ -414,13 +495,16 @@ export default function TechnicalInterview() {
           
           const nextQuestionNumber = completedQuestionNumber + 1;
           setTimeout(() => {
+            // Clear any existing hint timer
+            if (hintTimer) clearTimeout(hintTimer);
+            
             setCurrentQuestion(data.next_question || '');
             setQuestionStartTime(Date.now());
             setHintsUsed(0);
             setApproachDiscussed(false);
             setCode(getLanguageTemplate(language));
             addChatMessage('ai', `📋 Question ${nextQuestionNumber}: ${data.next_question || ''}`);
-            speakText(`Question ${nextQuestionNumber}: ${data.next_question || ''}`);
+            speakText(`Here's the next question, question ${nextQuestionNumber}.`);
           }, 2000);
         } else {
           console.warn('No next question provided in question_complete message');
@@ -798,21 +882,19 @@ export default function TechnicalInterview() {
                   <span>Hint</span>
                 </motion.button>
                 
-                {!approachDiscussed && (
-                  <motion.button
-                    whileHover={{ scale: 1.05, y: -1 }}
-                    whileTap={{ scale: 0.95 }}
-                    onClick={isRecordingApproach ? stopApproachDiscussion : discussApproach}
-                    className={`px-4 py-2 rounded-xl text-sm font-medium shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-1 ${
-                      isRecordingApproach
-                        ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white'
-                        : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
-                    }`}
-                  >
-                    <Mic className={`w-4 h-4 ${isRecordingApproach ? 'animate-pulse' : ''}`} />
-                    <span>{isRecordingApproach ? 'Stop' : 'Discuss'}</span>
-                  </motion.button>
-                )}
+                <motion.button
+                  whileHover={{ scale: 1.05, y: -1 }}
+                  whileTap={{ scale: 0.95 }}
+                  onClick={isRecordingApproach ? stopApproachDiscussion : discussApproach}
+                  className={`px-4 py-2 rounded-xl text-sm font-medium shadow-lg hover:shadow-xl transition-all duration-200 flex items-center space-x-1 ${
+                    isRecordingApproach
+                      ? 'bg-gradient-to-r from-red-500 to-pink-600 text-white'
+                      : 'bg-gradient-to-r from-green-500 to-emerald-600 text-white'
+                  }`}
+                >
+                  <Mic className={`w-4 h-4 ${isRecordingApproach ? 'animate-pulse' : ''}`} />
+                  <span>{isRecordingApproach ? 'Stop' : 'Discuss'}</span>
+                </motion.button>
               </div>
             </div>
 
@@ -871,7 +953,10 @@ export default function TechnicalInterview() {
                 <motion.button
                   whileHover={{ scale: 1.1, y: -1 }}
                   whileTap={{ scale: 0.9 }}
-                  onClick={() => speakText(currentQuestion)}
+                  onClick={() => {
+                    initializeSpeech(); // Initialize speech on first user interaction
+                    speakText(currentQuestion);
+                  }}
                   className="p-2 bg-purple-100 text-purple-700 rounded-lg hover:bg-purple-200 transition-all duration-200 shadow-sm hover:shadow-md border border-purple-200"
                 >
                   <Volume2 className="w-4 h-4" />
@@ -882,11 +967,11 @@ export default function TechnicalInterview() {
                 <p className="text-gray-800 text-sm leading-relaxed">
                   {currentQuestion || 'Loading question...'}
                 </p>
-                {currentQuestion && !approachDiscussed && (
+                {currentQuestion && (
                   <div className="mt-3 p-2 bg-emerald-50 border border-emerald-200 rounded-lg">
                     <p className="text-xs text-emerald-700 flex items-center">
                       <Mic className="w-3 h-3 mr-1" />
-                      Discuss your approach first for better scoring!
+                      Use "Discuss" button to talk through your approach anytime!
                     </p>
                   </div>
                 )}
@@ -943,6 +1028,11 @@ export default function TechnicalInterview() {
                 <h3 className="text-lg font-semibold text-gray-900 flex items-center">
                   <Bot className="w-5 h-5 mr-2 text-cyan-600" />
                   AI Assistant
+                  {speechInitialized && (
+                    <span className="ml-2 px-2 py-1 bg-green-100 text-green-600 text-xs rounded-full">
+                      🔊 Speech Ready
+                    </span>
+                  )}
                 </h3>
                 <motion.button
                   whileHover={{ scale: 1.1, y: -1 }}
