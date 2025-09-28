@@ -1452,7 +1452,7 @@ Evaluate:
 4. Time/space complexity awareness
 5. Alternative solutions mentioned
 
-Provide constructive feedback (2-3 sentences) focusing on strengths and areas for improvement.
+Provide constructive reply like an interviewer (2-3 sentences) focusing on strengths and areas for improvement.
 """
 
     try:
