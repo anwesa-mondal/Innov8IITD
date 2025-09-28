@@ -10,3 +10,6 @@ numpy
 cryptography
 dotenv
 uvicorn[standard]
+webrtcvad
+sounddevice
+soundfile
