@@ -45,7 +45,7 @@ const Navbar = ({ theme = 'light' }: NavbarProps) => {
         <div className="navbar-content">
           <div className="navbar-brand">
             <Link href="/" className="brand-link">
-              <span className="brand-text">CodeSage</span>
+              <span className="brand-text">{"</> "}CodeSage</span>
             </Link>
           </div>
           

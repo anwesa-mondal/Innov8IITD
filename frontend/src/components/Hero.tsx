@@ -13,12 +13,7 @@ interface HeroProps {
 const Hero = ({ onTakeInterview, onViewResults, onGoHome }: HeroProps) => {
   return (
     <>
-      <Navbar 
-        onTakeInterview={onTakeInterview}
-        onViewResults={onViewResults}
-        onGoHome={onGoHome}
-        theme="light"
-      />
+      <Navbar />
       <section className="hero section" id="home">
         <div className="container">
           <div className="hero-content">

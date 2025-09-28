@@ -498,7 +498,7 @@ export default function TechnicalInterview() {
 
         // Show and speak AI's reply to the approach discussion
         if (data.feedback) {
-          addChatMessage("ai", `Approach feedback: ${data.feedback}`);
+          addChatMessage("ai", `${data.feedback}`);
           speakText(data.feedback);
         }
 
