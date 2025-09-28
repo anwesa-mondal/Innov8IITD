@@ -1,7 +1,6 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import Navbar from '../../components/Navbar';
 
 export default function InterviewPage() {
   const router = useRouter();
@@ -12,18 +11,6 @@ export default function InterviewPage() {
     } else {
       router.push('/interview/resume');
     }
-  };
-
-  const handleTakeInterview = () => {
-    // This function can be used by Navbar if needed
-  };
-
-  const handleViewResults = () => {
-    router.push('/interview/results');
-  };
-
-  const handleGoHome = () => {
-    router.push('/');
   };
 
   return (

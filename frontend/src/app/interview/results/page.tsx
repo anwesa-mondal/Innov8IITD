@@ -1,17 +1,11 @@
 'use client';
 
 import { motion } from 'framer-motion';
-import { CheckCircle, ArrowLeft, FileText, Trophy, Clock, Target } from 'lucide-react';
+import { CheckCircle, ArrowLeft, FileText, Clock } from 'lucide-react';
 import { useState, useEffect } from 'react';
 import { useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import Navbar from '../../../components/Navbar';
-
-interface SessionData {
-  interviewType: string;
-  timestamp: string;
-  messages: string[];
-}
 
 interface ResultsData {
   interview_id?: string;
@@ -32,7 +26,6 @@ interface ResultsData {
 }
 
 export default function InterviewResultsPage() {
-  const searchParams = useSearchParams();
   const [resultsData, setResultsData] = useState<ResultsData | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -211,52 +204,7 @@ export default function InterviewResultsPage() {
       </div>
     );
   }
-
-  // Helper functions for data formatting
-  const formatDuration = (seconds: number) => {
-    const minutes = Math.floor(seconds / 60);
-    const remainingSeconds = seconds % 60;
-    return `${minutes}m ${remainingSeconds}s`;
-  };
-
-  const formatTime = (timestamp: number | string) => {
-    if (typeof timestamp === 'string') {
-      return new Date(timestamp).toLocaleTimeString('en-US', {
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    }
-    return new Date(timestamp * 1000).toLocaleTimeString('en-US', {
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const formatDateTime = (dateString: string | number): string => {
-    if (typeof dateString === 'number') {
-      return new Date(dateString * 1000).toLocaleDateString('en-US', {
-        year: 'numeric',
-        month: 'long',
-        day: 'numeric',
-        hour: '2-digit',
-        minute: '2-digit'
-      });
-    }
-    return new Date(dateString).toLocaleDateString('en-US', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit'
-    });
-  };
-
-  const formatInterviewType = (type: string): string => {
-    return type === 'technical' ? 'Technical Interview' : 
-           type === 'resume' ? 'Resume-based Interview' : 
-           type.charAt(0).toUpperCase() + type.slice(1) + ' Interview';
-  };
-
+  
   return (
     <div className="min-h-screen bg-gradient-to-br from-white via-cyan-50 to-violet-50">
       
@@ -294,7 +242,7 @@ export default function InterviewResultsPage() {
               className="text-lg text-slate-600 max-w-3xl mx-auto leading-relaxed"
             >
               🎉 Congratulations! You've successfully completed your interview. 
-              Here's a comprehensive summary of your performance.
+              Here&apos;s a comprehensive summary of your performance.
             </motion.p>
           </div>
 
@@ -325,7 +273,7 @@ export default function InterviewResultsPage() {
               </div>
             </motion.div>
           )}
-          
+
           {/* Action Button */}
           <motion.div
             initial={{ opacity: 0, y: 20 }}
